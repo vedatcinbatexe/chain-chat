@@ -1,5 +1,6 @@
 using ChainChat.Infrastructure.Chain;
 using ChainChat.Infrastructure.Indexing;
+using ChainChat.Infrastructure.Messaging;
 using ChainChat.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -42,6 +43,8 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<RegistryIndexer>();
+
+        services.AddScoped<MessageService>();
 
         services.AddHealthChecks()
             .AddNpgSql(connectionString, name: "postgres", tags: ["ready"])

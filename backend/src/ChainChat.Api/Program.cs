@@ -1,8 +1,10 @@
 using ChainChat.Api.Auth;
 using ChainChat.Api.Endpoints;
+using ChainChat.Api.Hubs;
 using ChainChat.Api.Common;
 using ChainChat.Infrastructure;
 using FluentValidation;
+using Microsoft.AspNetCore.SignalR;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -24,6 +26,8 @@ try
     builder.Services.AddApiRateLimiting(builder.Configuration);
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddWalletAuthentication(builder.Configuration);
+    builder.Services.AddSignalR();
+    builder.Services.AddSingleton<IUserIdProvider, WalletUserIdProvider>();
 
     var app = builder.Build();
 
@@ -50,6 +54,8 @@ try
     app.MapAuthEndpoints();
     app.MapDripEndpoints();
     app.MapUserEndpoints();
+    app.MapConversationEndpoints();
+    app.MapHub<ChatHub>(ChatHub.Path);
 
     await app.RunAsync();
 }
