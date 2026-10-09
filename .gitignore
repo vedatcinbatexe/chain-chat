@@ -1,4 +1,77 @@
-.env
-.DS_Store
+# ---- Personal / local files ----
 ROADMAP.md
+
+# ---- Secrets & environment ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- IDEs & editors ----
+.idea/
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.suo
+*.user
+*.userprefs
+
+# ---- Logs & test output ----
+*.log
+logs/
+coverage/
+TestResults/
+*.trx
+
+# ---- .NET (backend) ----
+bin/
+obj/
+*.nupkg
+.dotnet/
+
+# ---- Node / TypeScript (mobile, scripts, test-vector generator) ----
 node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Expo / React Native (mobile) ----
+.expo/
+.expo-shared/
+web-build/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.orig.*
+
+# ---- Foundry (contracts) ----
+contracts/out/
+contracts/cache/
+# Local Anvil deployment broadcasts (chain 31337); testnet broadcasts are kept as a record
+contracts/broadcast/*/31337/
+
+# ---- Terraform (infra) ----
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
