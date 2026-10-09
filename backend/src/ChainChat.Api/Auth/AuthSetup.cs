@@ -1,4 +1,5 @@
 using ChainChat.Core.Auth;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -16,7 +17,7 @@ public static class AuthSetup
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddSingleton(TimeProvider.System);
+        services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton(sp => new NonceStore(
             TimeSpan.FromMinutes(sp.GetRequiredService<IOptions<AuthOptions>>().Value.NonceLifetimeMinutes),
             sp.GetRequiredService<TimeProvider>()));

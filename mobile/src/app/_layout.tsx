@@ -35,7 +35,9 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <PaperProvider theme={themes.paper} settings={{ icon: (props) => <MaterialCommunityIcons {...props} /> }}>
           <ThemeProvider value={themes.navigation}>
-            <Stack screenOptions={{ headerShown: false }} />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="user/[address]" options={{ headerShown: true, title: 'Profile', headerBackTitle: 'Back' }} />
+            </Stack>
             <StatusBar style="auto" />
           </ThemeProvider>
         </PaperProvider>

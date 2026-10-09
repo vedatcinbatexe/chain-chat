@@ -1,10 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { ActivityIndicator, Button, Card, Divider, List, Text, useTheme } from 'react-native-paper';
 
 import { useSystemInfo } from '@/api/system';
-import { useBalances } from '@/chain/useBalances';
+import { BalancesRow } from '@/components/BalancesRow';
 import { CopyableValue } from '@/components/CopyableValue';
 import { env } from '@/config/env';
 import { useOnboardingState } from '@/onboarding/useOnboardingState';
@@ -19,7 +19,6 @@ export default function SettingsScreen() {
 
   const onboarding = useOnboardingState();
   const system = useSystemInfo();
-  const balances = useBalances(address);
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -56,15 +55,7 @@ export default function SettingsScreen() {
           {address && <CopyableValue label="Address" value={address} />}
           {encryptionPublicKey && <CopyableValue label="Encryption public key (X25519)" value={encryptionPublicKey} />}
           <Divider />
-          <View style={styles.balances}>
-            <Balance label="ETH (gas)" value={balances.data?.eth} loading={balances.isLoading} />
-            <Balance label="CHAT" value={balances.data ? (balances.data.chat ?? '—') : undefined} loading={balances.isLoading} />
-          </View>
-          {balances.isError && (
-            <Text variant="bodySmall" style={{ color: theme.colors.error }}>
-              Could not read balances from the chain ({env.rpcUrl}).
-            </Text>
-          )}
+          <BalancesRow address={address} />
         </Card.Content>
       </Card>
 
@@ -111,29 +102,9 @@ export default function SettingsScreen() {
   );
 }
 
-function Balance({ label, value, loading }: { label: string; value: string | undefined; loading: boolean }) {
-  const theme = useTheme();
-  return (
-    <View style={styles.balance}>
-      <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-        {label}
-      </Text>
-      {loading ? <ActivityIndicator size="small" /> : <Text variant="titleLarge">{value ? formatAmount(value) : '—'}</Text>}
-    </View>
-  );
-}
-
-/** Up to 4 decimals, enough to read a balance at a glance. */
-function formatAmount(value: string): string {
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits: 4 }) : value;
-}
-
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 16 },
   cardContent: { gap: 8 },
   username: { fontWeight: '700' },
-  balances: { flexDirection: 'row', paddingTop: 8 },
-  balance: { flex: 1, gap: 4 },
   loader: { marginVertical: 12 },
 });

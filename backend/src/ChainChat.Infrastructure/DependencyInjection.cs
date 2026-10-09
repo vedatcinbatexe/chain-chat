@@ -1,8 +1,10 @@
 using ChainChat.Infrastructure.Chain;
+using ChainChat.Infrastructure.Indexing;
 using ChainChat.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -33,6 +35,13 @@ public static class DependencyInjection
             .Validate(o => !o.Enabled || o.PrivateKey.Length > 0, "GasDrip:PrivateKey is required when the drip is enabled")
             .ValidateOnStart();
         services.AddScoped<GasDripService>();
+
+        services.AddOptions<IndexerOptions>()
+            .Bind(configuration.GetSection(IndexerOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddHostedService<RegistryIndexer>();
 
         services.AddHealthChecks()
             .AddNpgSql(connectionString, name: "postgres", tags: ["ready"])
