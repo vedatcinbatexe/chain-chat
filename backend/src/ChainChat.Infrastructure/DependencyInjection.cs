@@ -1,0 +1,50 @@
+using ChainChat.Infrastructure.Chain;
+using ChainChat.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace ChainChat.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("Postgres")
+            ?? throw new InvalidOperationException("Connection string 'Postgres' is not configured");
+
+        services.AddDbContext<ChainChatDbContext>(options => options
+            .UseNpgsql(connectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history"))
+            .UseSnakeCaseNamingConvention());
+
+        services.AddOptions<ChainOptions>()
+            .Bind(configuration.GetSection(ChainOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<ChainClient>();
+        services.AddSingleton<ContractDeployments>();
+
+        services.AddHealthChecks()
+            .AddNpgSql(connectionString, name: "postgres", tags: ["ready"])
+            .AddCheck<ChainHealthCheck>("chain", tags: ["ready"]);
+
+        return services;
+    }
+
+    /// <summary>Applies pending EF Core migrations (enabled with Database:MigrateOnStartup, used for local Docker runs).</summary>
+    public static async Task MigrateDatabaseAsync(this IHost host)
+    {
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ChainChatDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<ChainChatDbContext>>();
+
+        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        if (pending.Count == 0) return;
+
+        logger.LogInformation("Applying {Count} database migration(s): {Migrations}", pending.Count, string.Join(", ", pending));
+        await db.Database.MigrateAsync();
+    }
+}

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ChainChat.Api/ChainChat.Api.csproj" />
+    <Project Path="src/ChainChat.Core/ChainChat.Core.csproj" />
+    <Project Path="src/ChainChat.Infrastructure/ChainChat.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ChainChat.Core.Tests/ChainChat.Core.Tests.csproj" />
+  </Folder>
+</Solution>

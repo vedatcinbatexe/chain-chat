@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChainChat.Core\ChainChat.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Shared test vectors (Phase 3) — the single source of truth for C#, TypeScript and Solidity. -->
+  <ItemGroup>
+    <None Include="..\..\..\shared\test-vectors\vectors\*.json" LinkBase="vectors" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

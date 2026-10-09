@@ -55,16 +55,17 @@ chain-chat/
 - Foundry (for contracts)
 - Expo Go on a phone (for the mobile app)
 
-### Local infrastructure
+### Local environment
 
 ```bash
 cd infra/local
-docker compose up -d
+docker compose up -d --build
 ```
 
 | Service | Port | Notes |
 |---|---|---|
-| PostgreSQL 17 | 5432 | user / password / db: `chainchat` |
+| API | 5080 | `/health`, `/api/v1/system/info`, API docs at `/scalar` |
+| PostgreSQL 17 | 5432 | user / password / db: `chainchat` — migrations are applied by the API on startup |
 | Anvil (local EVM chain) | 8545 | chain id `31337`, 2 s blocks, 20 funded test accounts |
 | Redis *(optional)* | 6379 | `docker compose --profile extras up -d` |
 | RabbitMQ *(optional)* | 5672, UI 15672 | `docker compose --profile extras up -d` |
@@ -73,7 +74,26 @@ Ports and credentials can be changed by copying `infra/local/.env.example` to `i
 
 Stop everything with `docker compose down`, or add `-v` to also delete all data.
 
-The API, contract deployer and seed job will be added to the same Compose file as they are built. The Expo dev server runs directly on the laptop (`npx expo start`) so phones on the same network can scan its QR code.
+The contract deployer and seed job will be added to the same Compose file as they are built. The Expo dev server runs directly on the laptop (`npx expo start`) so phones on the same network can scan its QR code.
+
+### Backend development
+
+To run the API from your IDE or with hot reload instead of in Docker:
+
+```bash
+cd infra/local && docker compose stop api
+cd ../../backend
+dotnet run --project src/ChainChat.Api      # http://localhost:5080
+dotnet test                                  # includes the shared crypto test vectors
+```
+
+Database migrations (EF Core, installed as a local tool):
+
+```bash
+cd backend
+dotnet tool restore
+dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat.Api -o Persistence/Migrations
+```
 
 ## Development Workflow
 
@@ -82,4 +102,4 @@ The API, contract deployer and seed job will be added to the same Compose file a
 
 ## Status
 
-🚧 In development. Local infrastructure is ready; contracts, backend and mobile app are next.
+🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation. Next: contracts, authentication, mobile app.
