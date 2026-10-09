@@ -5,6 +5,7 @@ import { ActivityIndicator, Chip, List, Searchbar, useTheme } from 'react-native
 
 import { normalizeSearch, useUserSearch, type UserSummary } from '@/api/users';
 import { shorten } from '@/components/CopyableValue';
+import { DismissKeyboard } from '@/components/DismissKeyboard';
 import { EmptyState } from '@/components/EmptyState';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useWalletStore } from '@/wallet/walletStore';
@@ -31,7 +32,7 @@ export default function SearchScreen() {
   const open = (user: UserSummary) => router.push({ pathname: '/user/[address]', params: { address: user.address } });
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+    <DismissKeyboard style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <Searchbar
         placeholder="Username or 0x address"
         value={text}
@@ -58,6 +59,7 @@ export default function SearchScreen() {
           data={search.data ?? []}
           keyExtractor={(user) => user.address}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           renderItem={({ item }) => {
             const isMe = item.address.toLowerCase() === myAddress?.toLowerCase();
             return (
@@ -67,14 +69,16 @@ export default function SearchScreen() {
                 descriptionStyle={styles.address}
                 onPress={() => open(item)}
                 left={() => <UserAvatar username={item.username} address={item.address} />}
-                right={() => (isMe ? <Chip compact>You</Chip> : <List.Icon icon="chevron-right" />)}
+                right={(props) => (
+                  <View style={[props.style, styles.right]}>{isMe ? <Chip compact>You</Chip> : <List.Icon color={props.color} icon="chevron-right" />}</View>
+                )}
                 style={styles.item}
               />
             );
           }}
         />
       )}
-    </View>
+    </DismissKeyboard>
   );
 }
 
@@ -84,4 +88,5 @@ const styles = StyleSheet.create({
   loader: { marginTop: 32 },
   item: { paddingLeft: 16 },
   address: { fontFamily: 'Menlo' },
+  right: { justifyContent: 'center' },
 });

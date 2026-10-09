@@ -29,7 +29,7 @@ export default function ImportWalletScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Card mode="contained">
           <Card.Title title="Test wallets only" left={(props) => <Avatar.Icon {...props} icon="alert-outline" />} />
           <Card.Content>
