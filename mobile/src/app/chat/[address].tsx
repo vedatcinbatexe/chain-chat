@@ -11,6 +11,7 @@ import { addMessageToCache, useChatConnectionStore } from '@/chat/connection';
 import { sendTextMessage } from '@/chat/send';
 import { formatMessageTime, usePeer } from '@/chat/usePeer';
 import { verifyMessages, type VerifiedMessage } from '@/chat/verify';
+import { VerifySheet } from '@/chat/VerifySheet';
 import { ErrorScreen, LoadingScreen } from '@/components/StatusScreens';
 import { UserAvatar } from '@/components/UserAvatar';
 import { directConversationId } from '@/crypto';
@@ -44,6 +45,7 @@ export default function ChatScreen() {
   const messages = useMessages(conversationId);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState<PendingMessage[]>([]);
+  const [selected, setSelected] = useState<VerifiedMessage | null>(null);
 
   // Verify and decrypt on this phone; re-run whenever the message list or the peer's on-chain key changes.
   const verified = useQuery({
@@ -107,7 +109,7 @@ export default function ChatScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) =>
           item.kind === 'message' ? (
-            <MessageBubble message={item.message} peerUsername={peer.username} />
+            <MessageBubble message={item.message} peerUsername={peer.username} onPress={() => setSelected(item.message)} />
           ) : (
             <PendingBubble pending={item.pending} onRetry={() => send(item.pending.text, item.pending.key)} />
           )
@@ -117,7 +119,7 @@ export default function ChatScreen() {
             <View style={styles.empty}>
               <Icon source="lock-outline" size={36} color={theme.colors.outline} />
               <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                Messages are end-to-end encrypted with @{peer.username}&apos;s key from the blockchain. The server only stores ciphertext.
+                Messages are end-to-end encrypted with @{peer.username}&apos;s key from the blockchain. The server only stores ciphertext. Tap any message to verify it.
               </Text>
             </View>
           )
@@ -137,18 +139,20 @@ export default function ChatScreen() {
         />
         <IconButton icon="send" mode="contained" onPress={onSend} disabled={!draft.trim() || connection !== 'connected'} accessibilityLabel="Send" />
       </View>
+
+      <VerifySheet message={selected} peerUsername={peer.username} onDismiss={() => setSelected(null)} />
     </KeyboardAvoidingView>
   );
 }
 
-function MessageBubble({ message, peerUsername }: { message: VerifiedMessage; peerUsername: string }) {
+function MessageBubble({ message, peerUsername, onPress }: { message: VerifiedMessage; peerUsername: string; onPress: () => void }) {
   const theme = useTheme();
   const { mine, text, signatureValid, chainIntact, dto } = message;
   const background = mine ? theme.colors.primary : theme.colors.surfaceVariant;
   const foreground = mine ? theme.colors.onPrimary : theme.colors.onSurfaceVariant;
 
   return (
-    <View style={[styles.bubbleRow, mine ? styles.mine : styles.theirs]}>
+    <Pressable style={[styles.bubbleRow, mine ? styles.mine : styles.theirs]} onPress={onPress} accessibilityHint="Shows signature, hash chain and on-chain anchor checks">
       {!chainIntact && (
         <Text variant="labelSmall" style={[styles.warning, { color: theme.colors.error }]}>
           ⚠ A message from {mine ? 'you' : `@${peerUsername}`} is missing before this one
@@ -170,7 +174,7 @@ function MessageBubble({ message, peerUsername }: { message: VerifiedMessage; pe
           </Text>
         )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

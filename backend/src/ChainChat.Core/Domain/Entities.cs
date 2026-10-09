@@ -111,9 +111,13 @@ public class Payment
 
 public enum AnchorBatchStatus
 {
+    /// <summary>Built and stored with its proofs; transaction not sent yet.</summary>
     Pending,
+    /// <summary>anchorRoot transaction sent; waiting to be mined and indexed.</summary>
     Submitted,
+    /// <summary>RootAnchored event seen on-chain with enough confirmations.</summary>
     Confirmed,
+    /// <summary>The transaction failed; the batch's messages were released to be anchored again.</summary>
     Failed,
 }
 
@@ -126,6 +130,8 @@ public class AnchorBatch
     public long ToMessageId { get; set; }
     public int LeafCount { get; set; }
     public AnchorBatchStatus Status { get; set; }
+    /// <summary>The batch index in the Anchor contract (from the RootAnchored event); set once confirmed.</summary>
+    public long? ChainBatchId { get; set; }
     public string? TxHash { get; set; }
     public long? BlockNumber { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

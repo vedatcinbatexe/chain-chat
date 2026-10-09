@@ -17,6 +17,9 @@ public static class RateLimiting
     /// <summary>Gas drip: 10 requests per hour per client IP, on top of the one-drip-per-address rule.</summary>
     public const string DripPolicy = "drip";
 
+    /// <summary>Manual anchoring trigger: 5 requests per minute per client IP (each run may send a transaction).</summary>
+    public const string AnchorPolicy = "anchor";
+
     /// <summary>A global fixed-window limit per client IP, plus stricter named policies for login and the gas drip.</summary>
     public static IServiceCollection AddApiRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
@@ -29,6 +32,7 @@ public static class RateLimiting
                 PerIp(context, settings.PermitLimit, TimeSpan.FromSeconds(settings.WindowSeconds)));
             options.AddPolicy(AuthPolicy, context => PerIp(context, 20, TimeSpan.FromMinutes(1)));
             options.AddPolicy(DripPolicy, context => PerIp(context, 10, TimeSpan.FromHours(1)));
+            options.AddPolicy(AnchorPolicy, context => PerIp(context, 5, TimeSpan.FromMinutes(1)));
         });
     }
 

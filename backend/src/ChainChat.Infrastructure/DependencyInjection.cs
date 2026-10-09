@@ -1,3 +1,4 @@
+using ChainChat.Infrastructure.Anchoring;
 using ChainChat.Infrastructure.Chain;
 using ChainChat.Infrastructure.Indexing;
 using ChainChat.Infrastructure.Messaging;
@@ -43,6 +44,16 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<RegistryIndexer>();
+        services.AddHostedService<AnchorIndexer>();
+
+        services.AddOptions<AnchoringOptions>()
+            .Bind(configuration.GetSection(AnchoringOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(o => !o.Enabled || o.PrivateKey.Length > 0, "Anchoring:PrivateKey is required when anchoring is enabled")
+            .ValidateOnStart();
+        // Singleton so the API can trigger a run ("anchor now"); also registered as the hosted service.
+        services.AddSingleton<AnchoringJob>();
+        services.AddHostedService(sp => sp.GetRequiredService<AnchoringJob>());
 
         services.AddScoped<MessageService>();
 

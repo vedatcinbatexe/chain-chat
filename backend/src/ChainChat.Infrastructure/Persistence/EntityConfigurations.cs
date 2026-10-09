@@ -105,6 +105,7 @@ internal sealed class AnchorBatchConfiguration : IEntityTypeConfiguration<Anchor
         b.Property(a => a.Root).HasMaxLength(Len.Hash);
         b.Property(a => a.TxHash).HasMaxLength(Len.Hash);
         b.HasIndex(a => a.Root).IsUnique();
+        b.HasIndex(a => a.Status);
     }
 }
 

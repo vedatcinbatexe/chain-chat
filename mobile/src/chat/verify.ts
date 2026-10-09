@@ -12,6 +12,8 @@ export interface VerifiedMessage {
   signatureValid: boolean;
   /** This message links to the sender's previous one; false means a message was deleted, reordered or injected. */
   chainIntact: boolean;
+  /** messageHash recomputed on this phone from the message's fields — what anchoring proofs are checked against. */
+  recomputedHash: Hex | null;
 }
 
 /**
@@ -63,6 +65,7 @@ export async function verifyMessages(
         text: decrypt(dto.ciphertext, peerEncryptionKey, mySecretKey),
         signatureValid: hashMatches && signature.valid,
         chainIntact,
+        recomputedHash: recomputed,
       };
     }),
   );
