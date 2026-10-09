@@ -1,0 +1,21 @@
+{
+  "name": "@chainchat/test-vectors-generator",
+  "version": "1.0.0",
+  "description": "Reference implementation and test-vector generator for ChainChat's message hash, signature and Merkle tree specification",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "tsx src/generate.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "viem": "2.57.4"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

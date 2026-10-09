@@ -1,0 +1,134 @@
+{
+  "description": "EIP-191 signatures over messageHash: digest = keccak256(\"\\x19Ethereum Signed Message:\\n32\" ‖ messageHash), signature = r ‖ s ‖ v (65 bytes, v ∈ {27, 28}, low-s only). Keys are Anvil's public development keys. See SPEC.md §5.",
+  "valid": [
+    {
+      "name": "valid signature by alice",
+      "input": {
+        "privateKey": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+        "sender": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "messageHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d"
+      },
+      "expected": {
+        "digest": "0x49d51cf299cd9583619b6d04338417f6d5da8f677bd25858b1768a4dcb32c94a",
+        "signature": "0x6adc6c41f256dc48b43b8787c19e9f178edd46eb72ae848ced97c4cc94e26f4938008ad69c7c2c81dc06a9bb70e04c022ca4204f962105406a14a4ebe7130c4e1c",
+        "r": "0x6adc6c41f256dc48b43b8787c19e9f178edd46eb72ae848ced97c4cc94e26f49",
+        "s": "0x38008ad69c7c2c81dc06a9bb70e04c022ca4204f962105406a14a4ebe7130c4e",
+        "v": 28,
+        "check": {
+          "valid": true,
+          "signer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+        }
+      }
+    },
+    {
+      "name": "valid signature by bob",
+      "input": {
+        "privateKey": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        "sender": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "messageHash": "0x53538723acf2eb92e35c29f39fc81bfc3dfb45491fa48fc3cf420e9b581efce2"
+      },
+      "expected": {
+        "digest": "0xc5d6ccd0efcb1e0d05eefa54e18c0b3dc8d0e4aa3a587276b5d4926b1014e10b",
+        "signature": "0xca029f945a0fd848975b7188c8e4dbe951c1159d00e6558d8d563bc9d35284f104d9877eef4ad282927b1aac4cfcf1951bdb32c229141686f1f2fe40d24e48041c",
+        "r": "0xca029f945a0fd848975b7188c8e4dbe951c1159d00e6558d8d563bc9d35284f1",
+        "s": "0x04d9877eef4ad282927b1aac4cfcf1951bdb32c229141686f1f2fe40d24e4804",
+        "v": 28,
+        "check": {
+          "valid": true,
+          "signer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+        }
+      }
+    },
+    {
+      "name": "valid signature by carol",
+      "input": {
+        "privateKey": "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+        "sender": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "messageHash": "0x24ef3fab64790898014b73e55c2e07e6b89d826bea07519010405e826ac771f7"
+      },
+      "expected": {
+        "digest": "0xd0fc76ed915a54be3e33c4e878432576ee3ec9bdde6cb69e371ebef62f868eb6",
+        "signature": "0xba617518bfced59793ac7958bb553e61ef3c04f1d4ca7a23fccc687937ba8cba0aba2b9e7415c3dd569168db7990b68981378d144b5586e75701f18aa71c23141c",
+        "r": "0xba617518bfced59793ac7958bb553e61ef3c04f1d4ca7a23fccc687937ba8cba",
+        "s": "0x0aba2b9e7415c3dd569168db7990b68981378d144b5586e75701f18aa71c2314",
+        "v": 28,
+        "check": {
+          "valid": true,
+          "signer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "high-s (malleated) signature",
+      "input": {
+        "sender": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "messageHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d",
+        "signature": "0x6adc6c41f256dc48b43b8787c19e9f178edd46eb72ae848ced97c4cc94e26f49c7ff75296383d37e23f956448f1fb3fc8e0abc9719279afb55bdb9a0e92334f31b"
+      },
+      "expected": {
+        "check": {
+          "valid": false,
+          "reason": "high-s"
+        }
+      }
+    },
+    {
+      "name": "signed by bob, claimed by alice",
+      "input": {
+        "sender": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "messageHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d",
+        "signature": "0xbd4f3ef2ac5d3b728f27fac2432b55be144cd321e6684a9b85dbb0555a9470a34403742b227702c457a8b5d1ca3ff4d8c095a137834c98c07e92804bd79f0f691b"
+      },
+      "expected": {
+        "check": {
+          "valid": false,
+          "reason": "wrong-signer"
+        }
+      }
+    },
+    {
+      "name": "signature over a different messageHash",
+      "input": {
+        "sender": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "messageHash": "0x53538723acf2eb92e35c29f39fc81bfc3dfb45491fa48fc3cf420e9b581efce2",
+        "signature": "0x6adc6c41f256dc48b43b8787c19e9f178edd46eb72ae848ced97c4cc94e26f4938008ad69c7c2c81dc06a9bb70e04c022ca4204f962105406a14a4ebe7130c4e1c"
+      },
+      "expected": {
+        "check": {
+          "valid": false,
+          "reason": "wrong-signer"
+        }
+      }
+    },
+    {
+      "name": "invalid v value (29)",
+      "input": {
+        "sender": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "messageHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d",
+        "signature": "0x6adc6c41f256dc48b43b8787c19e9f178edd46eb72ae848ced97c4cc94e26f4938008ad69c7c2c81dc06a9bb70e04c022ca4204f962105406a14a4ebe7130c4e1d"
+      },
+      "expected": {
+        "check": {
+          "valid": false,
+          "reason": "bad-v"
+        }
+      }
+    },
+    {
+      "name": "truncated signature (64 bytes)",
+      "input": {
+        "sender": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "messageHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d",
+        "signature": "0x6adc6c41f256dc48b43b8787c19e9f178edd46eb72ae848ced97c4cc94e26f4938008ad69c7c2c81dc06a9bb70e04c022ca4204f962105406a14a4ebe7130c4e"
+      },
+      "expected": {
+        "check": {
+          "valid": false,
+          "reason": "bad-length"
+        }
+      }
+    }
+  ]
+}

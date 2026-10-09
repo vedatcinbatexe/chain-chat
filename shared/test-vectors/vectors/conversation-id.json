@@ -1,0 +1,45 @@
+{
+  "description": "1:1 conversation ids: keccak256(abi.encode(lowerAddress, higherAddress)). See SPEC.md §2.",
+  "cases": [
+    {
+      "name": "alice and bob",
+      "input": {
+        "a": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "b": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+      },
+      "expected": {
+        "conversationId": "0xbb28eaf196e36888b583595e63b9d101d47ab75a86946c03c23d13072638c85c"
+      }
+    },
+    {
+      "name": "bob and alice (same id as above)",
+      "input": {
+        "a": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "b": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      },
+      "expected": {
+        "conversationId": "0xbb28eaf196e36888b583595e63b9d101d47ab75a86946c03c23d13072638c85c"
+      }
+    },
+    {
+      "name": "alice and carol",
+      "input": {
+        "a": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "b": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+      },
+      "expected": {
+        "conversationId": "0x7ec8869ce6f67d1a2f57d4ce5494fc1712d9d68b3aa60c306271311f3b793dd3"
+      }
+    },
+    {
+      "name": "carol and bob",
+      "input": {
+        "a": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "b": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+      },
+      "expected": {
+        "conversationId": "0x43c8bee048e0480d644b3fe14e67fe0bf976d6ec2c649e37c28719ce63f6a1c8"
+      }
+    }
+  ]
+}
