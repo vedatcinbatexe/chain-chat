@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, HelperText, Icon, Text, useTheme } from 'react-native-paper';
@@ -18,12 +18,16 @@ export default function WelcomeScreen() {
   const create = useWalletStore((state) => state.create);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const walletReady = useWalletStore((state) => state.status === 'ready');
+
+  // A wallet exists — continue with on-chain registration.
+  if (walletReady) return <Redirect href="/register" />;
 
   const onCreate = async () => {
     setCreating(true);
     setError(null);
     try {
-      await create(); // the onboarding layout redirects to the app once the wallet is ready
+      await create(); // continues to on-chain registration once the wallet is ready
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create the wallet.');
       setCreating(false);

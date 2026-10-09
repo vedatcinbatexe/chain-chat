@@ -1,0 +1,49 @@
+{
+  "description": "Sign-In with Ethereum (EIP-4361) messages and their personal_sign (EIP-191) signatures. message = formatSiweMessage(fields); digest = keccak256(\"\\x19Ethereum Signed Message:\\n\" ‖ len(message) ‖ message). See SPEC.md §7.",
+  "cases": [
+    {
+      "name": "alice signs in on local Anvil",
+      "input": {
+        "privateKey": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+        "fields": {
+          "domain": "chainchat.local",
+          "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "statement": "Sign in to ChainChat with your wallet.",
+          "uri": "chainchat://app",
+          "chainId": 31337,
+          "nonce": "k3Jd8aQ2pLx9Zr7T",
+          "issuedAt": "2026-01-01T00:00:00.000Z",
+          "expirationTime": "2026-01-01T00:05:00.000Z"
+        }
+      },
+      "expected": {
+        "message": "chainchat.local wants you to sign in with your Ethereum account:\n0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\n\nSign in to ChainChat with your wallet.\n\nURI: chainchat://app\nVersion: 1\nChain ID: 31337\nNonce: k3Jd8aQ2pLx9Zr7T\nIssued At: 2026-01-01T00:00:00.000Z\nExpiration Time: 2026-01-01T00:05:00.000Z",
+        "digest": "0x8f5e50fed14acd71d8cff19161f7d699dafee504c1c2bc806c8cf49278dda9aa",
+        "signature": "0x0d58c7addb06469167a23334685fd92c2270d5eb0ff99891fea1c533e1e83b9500e44cd677b38768b6cbc50ff54b7fe352ed64bd3944ca0508fdb5747a802e531c",
+        "recoveredAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      }
+    },
+    {
+      "name": "bob signs in on Base Sepolia",
+      "input": {
+        "privateKey": "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        "fields": {
+          "domain": "chainchat.local",
+          "address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "statement": "Sign in to ChainChat with your wallet.",
+          "uri": "chainchat://app",
+          "chainId": 84532,
+          "nonce": "Q7wErTy9uIoP0aS1",
+          "issuedAt": "2026-03-15T12:30:45.123Z",
+          "expirationTime": "2026-03-15T12:35:45.123Z"
+        }
+      },
+      "expected": {
+        "message": "chainchat.local wants you to sign in with your Ethereum account:\n0x70997970C51812dc3A010C7d01b50e0d17dc79C8\n\nSign in to ChainChat with your wallet.\n\nURI: chainchat://app\nVersion: 1\nChain ID: 84532\nNonce: Q7wErTy9uIoP0aS1\nIssued At: 2026-03-15T12:30:45.123Z\nExpiration Time: 2026-03-15T12:35:45.123Z",
+        "digest": "0xbfc7b2444fc8fe6d415037532440561341bd9aba207b719ebffebb3dc156a005",
+        "signature": "0x1a0929ba5cb98ecc0e9c23c257270921b6eb88b90888cb938cbeb254b6196f8b00ee84fca0a66ad2921f9d2489e79845e45f03066c634439f0344d74129124e51b",
+        "recoveredAddress": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+      }
+    }
+  ]
+}

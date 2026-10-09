@@ -4,3 +4,4 @@ export * from './hashChain';
 export * from './merkle';
 export * from './messageHash';
 export * from './signature';
+export * from './siwe';

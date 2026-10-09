@@ -1,6 +1,6 @@
 # ChainChat Crypto Specification
 
-**Status:** v1.0 — implements SDD §6.3 and §6.7
+**Status:** v1.1 — implements SDD §6.2, §6.3 and §6.7
 **Applies to:** mobile app (TypeScript), backend (C#), contracts (Solidity)
 
 This document defines, byte by byte, how ChainChat computes conversation ids, message hashes, hash chains, signatures and Merkle trees. Every implementation **must** reproduce the test vectors in [`vectors/`](vectors/) exactly. If an implementation disagrees with a vector, the implementation is wrong.
@@ -194,13 +194,56 @@ Vectors: [`merkle.json`](vectors/merkle.json) — trees of 1, 2, 3, 4, 5, 7, 8 a
 
 ---
 
-## 7. Using the vectors
+## 7. Sign-In with Ethereum (login)
+
+The app signs in to the backend by signing an **EIP-4361** message with the wallet key; the backend returns a JWT. No password is involved.
+
+ChainChat uses a strict subset: **statement and expiration time are required**; `Not Before`, `Request ID` and `Resources` are not used. Lines are joined with `\n`:
+
+```
+{domain} wants you to sign in with your Ethereum account:
+{address}
+
+{statement}
+
+URI: {uri}
+Version: 1
+Chain ID: {chainId}
+Nonce: {nonce}
+Issued At: {issuedAt}
+Expiration Time: {expirationTime}
+```
+
+| Field | Rule |
+|---|---|
+| `domain` | The backend's configured domain (e.g. `chainchat.local`) |
+| `address` | **EIP-55 checksummed** |
+| `statement` | One line |
+| `uri` | The backend's configured URI (e.g. `chainchat://app`) |
+| `chainId` | The backend's chain id |
+| `nonce` | Issued by the backend, single use, ≥ 8 alphanumeric characters |
+| `issuedAt`, `expirationTime` | RFC 3339 timestamps (`2026-01-01T00:00:00.000Z`) |
+
+The message is signed with **personal_sign** (EIP-191 with the message's byte length):
+
+```
+digest    = keccak256("\x19Ethereum Signed Message:\n" ‖ len(message) ‖ message)
+signature = r ‖ s ‖ v              // same 65-byte format and checks as §5, including low-s
+```
+
+The backend additionally enforces: matching domain, URI and chain id; the nonce exists, belongs to this address and is consumed; `issuedAt` is not in the future and `expirationTime` is not in the past (small clock-skew allowance); and the message lifetime is short.
+
+Vectors: [`siwe.json`](vectors/siwe.json) — the formatted message, digest and signature for each case.
+
+---
+
+## 8. Using the vectors
 
 | Implementation | Where | How |
 |---|---|---|
 | TypeScript reference | [`generator/`](generator/) | Generates the vectors; `npm test` also fails if the committed files are out of date |
-| Mobile app | `mobile/` (Phase 8) | Jest tests load every JSON file and compare |
-| Backend | `backend/tests/` (Phase 4) | xUnit tests load every JSON file and compare |
+| Mobile app | `mobile/` (Phase 8) | Jest tests load every JSON file and compare; `siwe.json` checks the login message format |
+| Backend | `backend/tests/` (Phase 4) | xUnit tests load every JSON file and compare; `siwe.json` checks login message parsing |
 | Contracts | `contracts/test/` (Phase 2) | Foundry test checks every `merkle.json` proof with OpenZeppelin `MerkleProof.verify` |
 
 **Changing the spec:** update this document and the reference implementation together, run `npm run generate`, and commit the regenerated vectors in the same change. Every other implementation must then be updated until its tests pass again.

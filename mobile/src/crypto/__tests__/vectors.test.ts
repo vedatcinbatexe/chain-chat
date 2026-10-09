@@ -7,6 +7,9 @@ import { directConversationId } from '../conversationId';
 import { ciphertextHash, encodeMessage, messageHash } from '../messageHash';
 import { leafHash, merkleProof, merkleRoot, verifyProof } from '../merkle';
 import { signingDigest, signMessageHash, verifyMessageSignature } from '../signature';
+import { formatSiweMessage } from '../siwe';
+import { privateKeyToAccount } from 'viem/accounts';
+import { hashMessage } from 'viem';
 
 /** The shared Phase 3 answer key — the same files the C# and Solidity tests read. */
 const VECTORS_DIR = join(__dirname, '../../../../shared/test-vectors/vectors');
@@ -17,6 +20,7 @@ const messageHashes = load('message-hash.json');
 const hashChains = load('hash-chain.json');
 const signatures = load('signatures.json');
 const merkle = load('merkle.json');
+const siwe = load('siwe.json');
 
 /** [name, case] pairs for it.each, so every vector case is reported by name. */
 const named = (cases: any[]) => cases.map((c) => [c.name as string, c] as [string, any]);
@@ -70,5 +74,14 @@ describe('merkle.json', () => {
 
   it.each(named(merkle.negative))('rejects: %s', (_name, c: any) => {
     expect(verifyProof(c.leaf, c.proof, c.root)).toBe(false);
+  });
+});
+
+describe('siwe.json', () => {
+  it.each(named(siwe.cases))('%s', async (_name, c: any) => {
+    const message = formatSiweMessage(c.input.fields);
+    expect(message).toBe(c.expected.message);
+    expect(hashMessage(message)).toBe(c.expected.digest);
+    expect(await privateKeyToAccount(c.input.privateKey).signMessage({ message })).toBe(c.expected.signature);
   });
 });

@@ -9,7 +9,7 @@ public static class MerkleTree
     public static byte[] LeafHash(byte[] messageHash) => Keccak.Hash(Keccak.Hash(Abi.Bytes32(messageHash)));
 
     /// <summary>node = keccak256(min(a, b) ‖ max(a, b)), comparing a and b as unsigned 256-bit integers.</summary>
-    public static byte[] HashPair(byte[] a, byte[] b) => ToNumber(a) <= ToNumber(b) ? Keccak.Hash(a, b) : Keccak.Hash(b, a);
+    public static byte[] HashPair(byte[] a, byte[] b) => ToNumber(a) <= ToNumber(b) ? Keccak.HashConcat(a, b) : Keccak.HashConcat(b, a);
 
     /// <summary>All levels from the leaves (level 0) to the root. An odd last node is promoted unchanged, never duplicated.</summary>
     public static IReadOnlyList<IReadOnlyList<byte[]>> BuildLayers(IReadOnlyList<byte[]> leaves)

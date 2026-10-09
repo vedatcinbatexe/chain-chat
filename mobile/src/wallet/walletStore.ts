@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Address, Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 
+import { useSessionStore } from '@/auth/sessionStore';
 import { encryptionKeyPairFromSecret, generateEncryptionKeyPair, type EncryptionKeyPair } from '@/crypto';
 import { deleteSecrets, loadSecrets, saveSecrets, type StoredSecrets } from './storage';
 
@@ -88,6 +89,7 @@ export const useWalletStore = create<WalletState>()((set) => {
     remove: async () => {
       await deleteSecrets();
       session = null;
+      useSessionStore.getState().setSession(null);
       set({ status: 'empty', address: null, encryptionPublicKey: null });
     },
   };

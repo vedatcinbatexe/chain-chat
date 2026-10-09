@@ -27,6 +27,13 @@ public static class DependencyInjection
         services.AddSingleton<ChainClient>();
         services.AddSingleton<ContractDeployments>();
 
+        services.AddOptions<GasDripOptions>()
+            .Bind(configuration.GetSection(GasDripOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(o => !o.Enabled || o.PrivateKey.Length > 0, "GasDrip:PrivateKey is required when the drip is enabled")
+            .ValidateOnStart();
+        services.AddScoped<GasDripService>();
+
         services.AddHealthChecks()
             .AddNpgSql(connectionString, name: "postgres", tags: ["ready"])
             .AddCheck<ChainHealthCheck>("chain", tags: ["ready"]);

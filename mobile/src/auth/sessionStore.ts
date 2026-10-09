@@ -1,12 +1,18 @@
 import { create } from 'zustand';
 
+export interface Session {
+  /** JWT from Sign-In with Ethereum. Kept in memory only — signing in again is cheap and needs no password. */
+  token: string;
+  expiresAt: number;
+  address: string;
+}
+
 interface SessionState {
-  /** JWT from Sign-In with Ethereum (Phase 5). Kept in memory only; null until signed in. */
-  token: string | null;
-  setToken: (token: string | null) => void;
+  session: Session | null;
+  setSession: (session: Session | null) => void;
 }
 
 export const useSessionStore = create<SessionState>()((set) => ({
-  token: null,
-  setToken: (token) => set({ token }),
+  session: null,
+  setSession: (session) => set({ session }),
 }));

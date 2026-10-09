@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.2 (MVP)
+**Version:** 1.3 (MVP)
 
 ---
 
@@ -266,12 +266,13 @@ The encryption public key is registered on-chain **by a transaction sent from th
 ```mermaid
 sequenceDiagram
     participant U as App
-    participant D as Gas Drip (API)
+    participant A as API
     participant C as Registry (chain)
     participant I as Indexer
     U->>U: Generate wallet + X25519 keypair, store securely
-    U->>D: Request test ETH (new address only)
-    D-->>U: drip tx hash
+    U->>A: Sign in with Ethereum (§6.2) → JWT
+    U->>A: Request test ETH for the signed-in wallet (once per address)
+    A-->>U: drip tx hash
     U->>C: register(username, encPubKey) [signed tx]
     C-->>U: tx hash → "pending"
     C-->>I: UserRegistered event

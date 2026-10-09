@@ -1,3 +1,4 @@
+using ChainChat.Api.Auth;
 using ChainChat.Api.Endpoints;
 using ChainChat.Api.Common;
 using ChainChat.Infrastructure;
@@ -22,6 +23,7 @@ try
     builder.Services.AddOpenApi();
     builder.Services.AddApiRateLimiting(builder.Configuration);
     builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddWalletAuthentication(builder.Configuration);
 
     var app = builder.Build();
 
@@ -33,6 +35,8 @@ try
     app.UseExceptionHandler();
     app.UseStatusCodePages();
     app.UseSerilogRequestLogging();
+    app.UseAuthentication();
+    app.UseAuthorization();
     app.UseRateLimiter();
 
     if (app.Environment.IsDevelopment())
@@ -43,6 +47,8 @@ try
 
     app.MapHealthEndpoints();
     app.MapSystemEndpoints();
+    app.MapAuthEndpoints();
+    app.MapDripEndpoints();
 
     await app.RunAsync();
 }
