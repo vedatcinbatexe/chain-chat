@@ -65,6 +65,7 @@ docker compose up -d --build
 | Service | Port | Notes |
 |---|---|---|
 | API | 5080 | `/health`, `/api/v1/system/info`, API docs at `/scalar` |
+| Contracts deployer | — | One-off job: deploys the contracts to Anvil, writes `shared/deployments/anvil.json` |
 | PostgreSQL 17 | 5432 | user / password / db: `chainchat` — migrations are applied by the API on startup |
 | Anvil (local EVM chain) | 8545 | chain id `31337`, 2 s blocks, 20 funded test accounts |
 | Redis *(optional)* | 6379 | `docker compose --profile extras up -d` |
@@ -74,7 +75,7 @@ Ports and credentials can be changed by copying `infra/local/.env.example` to `i
 
 Stop everything with `docker compose down`, or add `-v` to also delete all data.
 
-The contract deployer and seed job will be added to the same Compose file as they are built. The Expo dev server runs directly on the laptop (`npx expo start`) so phones on the same network can scan its QR code.
+The seed job will be added to the same Compose file in Phase 15. Contract development is described in [contracts/README.md](contracts/README.md). The Expo dev server runs directly on the laptop (`npx expo start`) so phones on the same network can scan its QR code.
 
 ### Backend development
 
@@ -102,4 +103,4 @@ dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat
 
 ## Status
 
-🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation. Next: contracts, authentication, mobile app.
+🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts. Next: authentication, mobile app.

@@ -57,6 +57,7 @@ web-build/
 # ---- Foundry (contracts) ----
 contracts/out/
 contracts/cache/
+contracts/dependencies/
 # Local Anvil deployment broadcasts (chain 31337); testnet broadcasts are kept as a record
 contracts/broadcast/*/31337/
 
@@ -75,3 +76,6 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+
+# ---- Generated local deployment (each machine has its own Anvil) ----
+shared/deployments/anvil.json
