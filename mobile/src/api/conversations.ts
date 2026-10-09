@@ -16,6 +16,17 @@ export interface MessageDto {
   signature: Hex;
   clientTimestamp: string;
   serverReceivedAt: string;
+  /** The server's view of a payment message (apps also check the receipt on-chain themselves). */
+  payment?: PaymentDto | null;
+}
+
+export interface PaymentDto {
+  txHash: Hex;
+  status: 'Pending' | 'Confirmed' | 'Failed';
+  /** On-chain amount in wei (decimal string), once confirmed. */
+  amount: string | null;
+  blockNumber: number | null;
+  failureReason: string | null;
 }
 
 export interface ConversationSummary {

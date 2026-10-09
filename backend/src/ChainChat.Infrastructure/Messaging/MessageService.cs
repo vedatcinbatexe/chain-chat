@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace ChainChat.Infrastructure.Messaging;
 
 /// <summary>A message as sent by the app: hex for bytes, decimal strings for uint64 (SPEC.md §1).</summary>
+/// <param name="PaymentTxHash">For a payment message: the ChatToken transfer transaction it claims (SDD §6.4).</param>
 public sealed record SendMessageCommand(
     string ConversationId,
     string Recipient,
@@ -16,7 +17,11 @@ public sealed record SendMessageCommand(
     string PrevHash,
     string Ciphertext,
     string ClientTimestamp,
-    string Signature);
+    string Signature,
+    string? PaymentTxHash = null);
+
+/// <summary>A stored message, its payment claim (if any), and whether it was newly created.</summary>
+public sealed record AcceptedMessage(Message Message, Payment? Payment, bool Created);
 
 /// <summary>Why a message was refused; the code is sent back to the app.</summary>
 public sealed class MessageRejectedException(string code) : Exception($"Message rejected: {code}")
@@ -29,10 +34,12 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
     /// <summary>
     /// Validates and stores a 1:1 message from <paramref name="sender"/> (the signed-in wallet).
     /// Idempotent: re-sending an already stored message returns it with <c>Created = false</c>.
+    /// A payment message also records a pending payment; each transaction can be claimed only once.
     /// </summary>
-    public async Task<(Message Message, bool Created)> AcceptAsync(string sender, SendMessageCommand command, CancellationToken ct)
+    public async Task<AcceptedMessage> AcceptAsync(string sender, SendMessageCommand command, CancellationToken ct)
     {
         var incoming = Parse(sender, command);
+        var paymentTxHash = ParsePaymentTxHash(command.PaymentTxHash);
         var conversationId = Hex.FromBytes(incoming.ConversationId);
         var senderAddress = EthAddress.Normalize(incoming.Sender);
         var recipientAddress = EthAddress.Normalize(incoming.Recipient);
@@ -42,12 +49,22 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
         if (candidateHash is not null)
         {
             var existing = await db.Messages.AsNoTracking().FirstOrDefaultAsync(m => m.MessageHash == candidateHash, ct);
-            if (existing is not null && existing.Sender == senderAddress) return (existing, false);
+            if (existing is not null && existing.Sender == senderAddress)
+            {
+                var existingPayment = await db.Payments.AsNoTracking().FirstOrDefaultAsync(p => p.MessageId == existing.Id, ct);
+                return new AcceptedMessage(existing, existingPayment, false);
+            }
         }
 
         // Both sides must be registered on-chain (mirrored by the indexer), so the recipient has a public key.
         var registered = await db.Users.Where(u => u.Address == senderAddress || u.Address == recipientAddress).CountAsync(ct);
         if (registered < 2) throw new MessageRejectedException("NotRegistered");
+
+        if (paymentTxHash is not null && await db.Payments.AnyAsync(p => p.TxHash == paymentTxHash, ct))
+        {
+            // The same transfer cannot be shown as two payments.
+            throw new MessageRejectedException("PaymentTxAlreadyClaimed");
+        }
 
         var previous = await db.Messages.AsNoTracking()
             .Where(m => m.ConversationId == conversationId && m.Sender == senderAddress)
@@ -90,21 +107,56 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
             Signature = incoming.Signature,
             ClientTimestamp = incoming.ClientTimestamp,
             ServerReceivedAt = time.GetUtcNow(),
-            Type = MessageType.Text,
+            Type = paymentTxHash is null ? MessageType.Text : MessageType.Payment,
+            PaymentTxHash = paymentTxHash,
         };
         db.Messages.Add(message);
 
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        Payment? payment = null;
         try
         {
             await db.SaveChangesAsync(ct);
+
+            if (paymentTxHash is not null)
+            {
+                // Pending until the PaymentVerifier has checked the on-chain receipt.
+                payment = new Payment
+                {
+                    TxHash = paymentTxHash,
+                    From = senderAddress,
+                    To = recipientAddress,
+                    Status = PaymentStatus.Pending,
+                    MessageId = message.Id,
+                    CreatedAt = time.GetUtcNow(),
+                };
+                db.Payments.Add(payment);
+                await db.SaveChangesAsync(ct);
+            }
+
+            await transaction.CommitAsync(ct);
         }
         catch (DbUpdateException)
         {
-            // Another message with the same seq won the race (unique index on conversation + sender + seq).
-            throw new MessageRejectedException("SeqConflict");
+            // Another message with the same seq — or a payment for the same transaction — won the race.
+            throw new MessageRejectedException(paymentTxHash is null ? "SeqConflict" : "SeqConflictOrPaymentTxAlreadyClaimed");
         }
 
-        return (message, true);
+        return new AcceptedMessage(message, payment, true);
+    }
+
+    private static string? ParsePaymentTxHash(string? txHash)
+    {
+        if (txHash is null) return null;
+        try
+        {
+            var bytes = Hex.ToBytes(txHash);
+            return bytes.Length == 32 ? Hex.FromBytes(bytes) : throw new FormatException();
+        }
+        catch (FormatException)
+        {
+            throw new MessageRejectedException(nameof(MessageRejection.Malformed));
+        }
     }
 
     private static IncomingMessage Parse(string sender, SendMessageCommand c)

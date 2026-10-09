@@ -5,11 +5,14 @@ import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, List, Text, useTheme } from 'react-native-paper';
 
 import { useConversations, type ConversationSummary } from '@/api/conversations';
+import { parsePaymentPayload } from '@/chat/payment';
 import { formatMessageTime, usePeer } from '@/chat/usePeer';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorScreen } from '@/components/StatusScreens';
 import { UserAvatar } from '@/components/UserAvatar';
 import { decrypt } from '@/crypto';
+import { formatUnits } from 'viem';
+
 import { getEncryptionKeyPair, useWalletStore } from '@/wallet/walletStore';
 
 export default function ChatsScreen() {
@@ -60,7 +63,9 @@ function ConversationRow({ conversation, onPress }: { conversation: Conversation
 
   // Preview only: decrypted with the peer's on-chain key. Full signature and chain checks happen in the chat screen.
   const text = last && peer ? decrypt(last.ciphertext, peer.encryptionKey, getEncryptionKeyPair().secretKey) : null;
-  const preview = !last ? 'No messages yet' : text === null ? '🔒 Encrypted message' : `${last.sender.toLowerCase() === me?.toLowerCase() ? 'You: ' : ''}${text}`;
+  const payment = parsePaymentPayload(text);
+  const body = payment ? `💸 ${Number(formatUnits(BigInt(payment.amount), 18)).toLocaleString()} CHAT` : text;
+  const preview = !last ? 'No messages yet' : body === null ? '🔒 Encrypted message' : `${last.sender.toLowerCase() === me?.toLowerCase() ? 'You: ' : ''}${body}`;
 
   return (
     <List.Item

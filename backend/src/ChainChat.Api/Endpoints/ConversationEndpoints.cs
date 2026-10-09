@@ -39,12 +39,13 @@ public static class ConversationEndpoints
             .Select(g => g.Max(m => m.Id))
             .ToListAsync(ct);
         var lastMessages = await db.Messages.AsNoTracking().Where(m => lastIds.Contains(m.Id)).ToDictionaryAsync(m => m.ConversationId, ct);
+        var lastPayments = await PaymentsFor(db, lastIds, ct);
 
         var summaries = peers
             .Select(p => new ConversationSummary(
                 p.ConversationId,
                 new Peer(EthAddress.ToChecksum(p.Address), p.Username),
-                lastMessages.TryGetValue(p.ConversationId, out var last) ? MessageDto.From(last) : null))
+                lastMessages.TryGetValue(p.ConversationId, out var last) ? MessageDto.From(last, lastPayments.GetValueOrDefault(last.Id)) : null))
             .OrderByDescending(s => s.LastMessage?.Id ?? 0)
             .ToArray();
 
@@ -66,6 +67,12 @@ public static class ConversationEndpoints
             .Take(Math.Clamp(limit ?? 50, 1, 200))
             .ToListAsync(ct);
 
-        return TypedResults.Ok(page.OrderBy(m => m.Id).Select(MessageDto.From).ToArray());
+        var payments = await PaymentsFor(db, page.Select(m => m.Id).ToList(), ct);
+        return TypedResults.Ok(page.OrderBy(m => m.Id).Select(m => MessageDto.From(m, payments.GetValueOrDefault(m.Id))).ToArray());
     }
+
+    private static async Task<Dictionary<long, ChainChat.Core.Domain.Payment>> PaymentsFor(ChainChatDbContext db, List<long> messageIds, CancellationToken ct) =>
+        await db.Payments.AsNoTracking()
+            .Where(p => p.MessageId != null && messageIds.Contains(p.MessageId.Value))
+            .ToDictionaryAsync(p => p.MessageId!.Value, ct);
 }

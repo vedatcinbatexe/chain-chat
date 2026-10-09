@@ -13,6 +13,9 @@ export interface SendMessageCommand {
   ciphertext: Hex;
   clientTimestamp: string;
   signature: Hex;
+  /** For a payment message: the ChatToken transfer it claims. Not part of the signed hash — the server and the
+   *  recipient check it against the chain, and it is also inside the encrypted, signed payload. */
+  paymentTxHash?: Hex;
 }
 
 export interface ComposeInput {
@@ -21,6 +24,7 @@ export interface ComposeInput {
   peer: { address: Address; encryptionKey: Hex };
   head: ChainHead;
   text: string;
+  paymentTxHash?: Hex;
   now?: number;
 }
 
@@ -28,7 +32,7 @@ export interface ComposeInput {
  * Builds a signed, encrypted, hash-chained message (SDD §6.3):
  * encrypt for the peer → header linked to the previous message → messageHash → EIP-191 signature.
  */
-export async function composeMessage({ account, encryptionSecretKey, peer, head, text, now = Date.now() }: ComposeInput) {
+export async function composeMessage({ account, encryptionSecretKey, peer, head, text, paymentTxHash, now = Date.now() }: ComposeInput) {
   const header: MessageHeader = {
     conversationId: directConversationId(account.address, peer.address),
     sender: account.address,
@@ -48,6 +52,7 @@ export async function composeMessage({ account, encryptionSecretKey, peer, head,
     ciphertext: header.ciphertext,
     clientTimestamp: header.clientTimestamp.toString(),
     signature,
+    ...(paymentTxHash ? { paymentTxHash } : {}),
   };
   return { command, messageHash: hash, nextHead: { seq: header.seq, messageHash: hash } satisfies ChainHead };
 }

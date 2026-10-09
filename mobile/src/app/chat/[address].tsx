@@ -4,11 +4,16 @@ import { useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Banner, Icon, IconButton, Text, TextInput, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Address } from 'viem';
+import { formatUnits, type Address, type Hex } from 'viem';
 
-import { useMessages } from '@/api/conversations';
+import { useMessages, type MessageDto } from '@/api/conversations';
+import { useSystemInfo } from '@/api/system';
+import { transferChat } from '@/chain/chatToken';
 import { addMessageToCache, useChatConnectionStore } from '@/chat/connection';
+import { formatPaymentPayload, parsePaymentPayload } from '@/chat/payment';
+import { PaymentContent } from '@/chat/PaymentContent';
 import { sendTextMessage } from '@/chat/send';
+import { SendPaymentSheet } from '@/chat/SendPaymentSheet';
 import { formatMessageTime, usePeer } from '@/chat/usePeer';
 import { verifyMessages, type VerifiedMessage } from '@/chat/verify';
 import { VerifySheet } from '@/chat/VerifySheet';
@@ -26,6 +31,7 @@ const nextPendingKey = () => `pending-${++pendingCounter}`;
 interface PendingMessage {
   key: string;
   text: string;
+  paymentTxHash?: Hex;
   failed: boolean;
 }
 
@@ -46,6 +52,8 @@ export default function ChatScreen() {
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [selected, setSelected] = useState<VerifiedMessage | null>(null);
+  const [paying, setPaying] = useState(false);
+  const system = useSystemInfo();
 
   // Verify and decrypt on this phone; re-run whenever the message list or the peer's on-chain key changes.
   const verified = useQuery({
@@ -59,9 +67,9 @@ export default function ChatScreen() {
   if (isError) return <ErrorScreen message="Could not read this user from the Registry contract." onRetry={() => refetch()} />;
   if (notRegistered || !peer) return <ErrorScreen message="This address is not registered on ChainChat." onRetry={() => refetch()} />;
 
-  const send = (text: string, key = nextPendingKey()) => {
-    setPending((previous) => [...previous.filter((p) => p.key !== key), { key, text, failed: false }]);
-    sendTextMessage(peer, text)
+  const send = (text: string, key = nextPendingKey(), paymentTxHash?: Hex) => {
+    setPending((previous) => [...previous.filter((p) => p.key !== key), { key, text, paymentTxHash, failed: false }]);
+    sendTextMessage(peer, text, paymentTxHash)
       .then((stored) => {
         addMessageToCache(queryClient, stored);
         setPending((previous) => previous.filter((p) => p.key !== key));
@@ -70,6 +78,12 @@ export default function ChatScreen() {
         console.warn('Send failed', error);
         setPending((previous) => previous.map((p) => (p.key === key ? { ...p, failed: true } : p)));
       });
+  };
+
+  /** SDD §6.4: transfer on-chain from this wallet first, then announce it in the chat with the tx hash. */
+  const sendPayment = async (amount: bigint, note: string) => {
+    const txHash = await transferChat(system.data!, peer.address, amount);
+    send(formatPaymentPayload({ amount: amount.toString(), txHash, ...(note ? { note } : {}) }), undefined, txHash);
   };
 
   const onSend = () => {
@@ -109,9 +123,9 @@ export default function ChatScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) =>
           item.kind === 'message' ? (
-            <MessageBubble message={item.message} peerUsername={peer.username} onPress={() => setSelected(item.message)} />
+            <MessageBubble message={item.message} peerUsername={peer.username} recipient={item.message.mine ? peer.address : me} onPress={() => setSelected(item.message)} />
           ) : (
-            <PendingBubble pending={item.pending} onRetry={() => send(item.pending.text, item.pending.key)} />
+            <PendingBubble pending={item.pending} onRetry={() => send(item.pending.text, item.pending.key, item.pending.paymentTxHash)} />
           )
         }
         ListEmptyComponent={
@@ -127,6 +141,7 @@ export default function ChatScreen() {
       />
 
       <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 8), borderTopColor: theme.colors.outlineVariant }]}>
+        <IconButton icon="cash-fast" onPress={() => setPaying(true)} disabled={connection !== 'connected' || !system.data?.contracts.ChatToken} accessibilityLabel="Send CHAT" />
         <TextInput
           mode="outlined"
           placeholder="Encrypted message"
@@ -141,13 +156,17 @@ export default function ChatScreen() {
       </View>
 
       <VerifySheet message={selected} peerUsername={peer.username} onDismiss={() => setSelected(null)} />
+      <SendPaymentSheet visible={paying} peerUsername={peer.username} onDismiss={() => setPaying(false)} onSend={sendPayment} />
     </KeyboardAvoidingView>
   );
 }
 
-function MessageBubble({ message, peerUsername, onPress }: { message: VerifiedMessage; peerUsername: string; onPress: () => void }) {
+function MessageBubble({ message, peerUsername, recipient, onPress }: { message: VerifiedMessage; peerUsername: string; recipient: Address; onPress: () => void }) {
   const theme = useTheme();
   const { mine, text, signatureValid, chainIntact, dto } = message;
+  // A payment only counts if the signed, encrypted payload names the same transaction the server recorded.
+  const parsed = parsePaymentPayload(text);
+  const payment = parsed && (!dto.payment || dto.payment.txHash.toLowerCase() === parsed.txHash.toLowerCase()) ? parsed : null;
   const background = mine ? theme.colors.primary : theme.colors.surfaceVariant;
   const foreground = mine ? theme.colors.onPrimary : theme.colors.onSurfaceVariant;
 
@@ -159,9 +178,13 @@ function MessageBubble({ message, peerUsername, onPress }: { message: VerifiedMe
         </Text>
       )}
       <View style={[styles.bubble, { backgroundColor: signatureValid ? background : theme.colors.errorContainer }]}>
-        <Text style={{ color: signatureValid ? foreground : theme.colors.onErrorContainer, fontStyle: text === null ? 'italic' : 'normal' }}>
-          {text ?? 'Could not decrypt this message'}
-        </Text>
+        {payment ? (
+          <PaymentContent payload={payment} dto={dto as MessageDto} recipient={recipient} color={signatureValid ? foreground : theme.colors.onErrorContainer} />
+        ) : (
+          <Text style={{ color: signatureValid ? foreground : theme.colors.onErrorContainer, fontStyle: text === null ? 'italic' : 'normal' }}>
+            {text ?? 'Could not decrypt this message'}
+          </Text>
+        )}
         <View style={styles.meta}>
           <Text variant="labelSmall" style={{ color: signatureValid ? foreground : theme.colors.onErrorContainer, opacity: 0.8 }}>
             {formatMessageTime(Number(dto.clientTimestamp))}
@@ -183,7 +206,7 @@ function PendingBubble({ pending, onRetry }: { pending: PendingMessage; onRetry:
   return (
     <Pressable style={[styles.bubbleRow, styles.mine]} onPress={pending.failed ? onRetry : undefined} disabled={!pending.failed}>
       <View style={[styles.bubble, { backgroundColor: theme.colors.primary, opacity: 0.6 }]}>
-        <Text style={{ color: theme.colors.onPrimary }}>{pending.text}</Text>
+        <Text style={{ color: theme.colors.onPrimary }}>{describePending(pending)}</Text>
         <View style={styles.meta}>
           <Icon source={pending.failed ? 'alert-circle-outline' : 'clock-outline'} size={14} color={theme.colors.onPrimary} />
           <Text variant="labelSmall" style={{ color: theme.colors.onPrimary }}>
@@ -193,6 +216,11 @@ function PendingBubble({ pending, onRetry }: { pending: PendingMessage; onRetry:
       </View>
     </Pressable>
   );
+}
+
+function describePending(pending: PendingMessage): string {
+  const payment = parsePaymentPayload(pending.text);
+  return payment ? `💸 Sending ${formatUnits(BigInt(payment.amount), 18)} CHAT…` : pending.text;
 }
 
 const styles = StyleSheet.create({

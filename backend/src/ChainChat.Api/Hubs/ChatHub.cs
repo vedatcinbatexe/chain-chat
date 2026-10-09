@@ -11,6 +11,9 @@ public interface IChatClient
 {
     /// <summary>A new message in one of the user's conversations (also echoed to the sender's other connections).</summary>
     Task MessageReceived(MessageDto message);
+
+    /// <summary>A payment claim was confirmed or rejected from its on-chain receipt.</summary>
+    Task PaymentUpdated(PaymentUpdateDto update);
 }
 
 /// <summary>
@@ -28,8 +31,8 @@ public sealed class ChatHub(MessageService messages, ILogger<ChatHub> logger) : 
         var sender = Context.User!.WalletAddress();
         try
         {
-            var (message, created) = await messages.AcceptAsync(sender, request, Context.ConnectionAborted);
-            var dto = MessageDto.From(message);
+            var (message, payment, created) = await messages.AcceptAsync(sender, request, Context.ConnectionAborted);
+            var dto = MessageDto.From(message, payment);
 
             if (created)
             {
@@ -45,6 +48,13 @@ public sealed class ChatHub(MessageService messages, ILogger<ChatHub> logger) : 
             throw new HubException(ex.Code);
         }
     }
+}
+
+/// <summary>Pushes payment status changes to the payer and the payee over SignalR.</summary>
+public sealed class HubPaymentNotifier(IHubContext<ChatHub, IChatClient> hub) : ChainChat.Infrastructure.Payments.IPaymentNotifier
+{
+    public Task PaymentUpdatedAsync(ChainChat.Core.Domain.Payment payment, string conversationId, CancellationToken ct) =>
+        hub.Clients.Users(payment.From, payment.To).PaymentUpdated(new PaymentUpdateDto(payment.MessageId!.Value, conversationId, PaymentDto.From(payment)));
 }
 
 /// <summary>Uses the lowercase wallet address (the JWT subject) as the SignalR user id.</summary>

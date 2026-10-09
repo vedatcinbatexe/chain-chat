@@ -19,33 +19,34 @@ export interface Peer {
   encryptionKey: Hex;
 }
 
-/** Encrypts, signs and sends a text message; resolves with the server's acknowledgement. */
-export function sendTextMessage(peer: Peer, text: string): Promise<MessageDto> {
+/** Encrypts, signs and sends a message; resolves with the server's acknowledgement. */
+export function sendTextMessage(peer: Peer, text: string, paymentTxHash?: Hex): Promise<MessageDto> {
   const conversationId = directConversationId(getAccount().address, peer.address);
   const previous = queues.get(conversationId) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(() => send(conversationId, peer, text));
+  const next = previous.catch(() => undefined).then(() => send(conversationId, peer, text, paymentTxHash));
   queues.set(conversationId, next);
   return next;
 }
 
-async function send(conversationId: string, peer: Peer, text: string): Promise<MessageDto> {
+async function send(conversationId: string, peer: Peer, text: string, paymentTxHash?: Hex): Promise<MessageDto> {
   const account = getAccount();
   const head = await loadChainHead(conversationId, account.address);
   try {
-    return await attempt(conversationId, peer, text, head);
+    return await attempt(conversationId, peer, text, head, paymentTxHash);
   } catch (error) {
     if (!(error instanceof ChatRejectedError) || !STALE_HEAD.has(error.code)) throw error;
-    return attempt(conversationId, peer, text, await rebuildChainHead(conversationId, account.address));
+    return attempt(conversationId, peer, text, await rebuildChainHead(conversationId, account.address), paymentTxHash);
   }
 }
 
-async function attempt(conversationId: string, peer: Peer, text: string, head: ChainHead): Promise<MessageDto> {
+async function attempt(conversationId: string, peer: Peer, text: string, head: ChainHead, paymentTxHash?: Hex): Promise<MessageDto> {
   const { command, messageHash, nextHead } = await composeMessage({
     account: getAccount(),
     encryptionSecretKey: getEncryptionKeyPair().secretKey,
     peer,
     head,
     text,
+    paymentTxHash,
   });
 
   const stored = await invokeChat<MessageDto>('SendMessage', command);

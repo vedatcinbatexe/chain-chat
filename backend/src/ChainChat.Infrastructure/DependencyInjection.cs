@@ -2,6 +2,7 @@ using ChainChat.Infrastructure.Anchoring;
 using ChainChat.Infrastructure.Chain;
 using ChainChat.Infrastructure.Indexing;
 using ChainChat.Infrastructure.Messaging;
+using ChainChat.Infrastructure.Payments;
 using ChainChat.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -56,6 +57,13 @@ public static class DependencyInjection
         services.AddHostedService(sp => sp.GetRequiredService<AnchoringJob>());
 
         services.AddScoped<MessageService>();
+
+        services.AddOptions<PaymentOptions>()
+            .Bind(configuration.GetSection(PaymentOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.TryAddSingleton<IPaymentNotifier, NullPaymentNotifier>(); // the API replaces it with SignalR
+        services.AddHostedService<PaymentVerifier>();
 
         services.AddHealthChecks()
             .AddNpgSql(connectionString, name: "postgres", tags: ["ready"])
