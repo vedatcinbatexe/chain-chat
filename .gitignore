@@ -1,3 +1,4 @@
 .env
 .DS_Store
 ROADMAP.md
+node_modules/

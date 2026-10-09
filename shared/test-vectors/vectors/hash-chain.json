@@ -1,0 +1,129 @@
+{
+  "description": "Per-sender hash chain checks. previous = the sender's last accepted message (null if none); next = the incoming message. See SPEC.md §4.",
+  "cases": [
+    {
+      "name": "valid genesis: seq 1 with zero prevHash",
+      "input": {
+        "previous": null,
+        "next": {
+          "seq": "1",
+          "prevHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "expected": {
+        "valid": true
+      }
+    },
+    {
+      "name": "valid link: message 1 -> 2",
+      "input": {
+        "previous": {
+          "seq": "1",
+          "messageHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d"
+        },
+        "next": {
+          "seq": "2",
+          "prevHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d"
+        }
+      },
+      "expected": {
+        "valid": true
+      }
+    },
+    {
+      "name": "valid link: message 2 -> 3",
+      "input": {
+        "previous": {
+          "seq": "2",
+          "messageHash": "0x53538723acf2eb92e35c29f39fc81bfc3dfb45491fa48fc3cf420e9b581efce2"
+        },
+        "next": {
+          "seq": "3",
+          "prevHash": "0x53538723acf2eb92e35c29f39fc81bfc3dfb45491fa48fc3cf420e9b581efce2"
+        }
+      },
+      "expected": {
+        "valid": true
+      }
+    },
+    {
+      "name": "invalid genesis: first message has seq 2",
+      "input": {
+        "previous": null,
+        "next": {
+          "seq": "2",
+          "prevHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d"
+        }
+      },
+      "expected": {
+        "valid": false,
+        "reason": "bad-genesis"
+      }
+    },
+    {
+      "name": "invalid genesis: seq 1 with non-zero prevHash",
+      "input": {
+        "previous": null,
+        "next": {
+          "seq": "1",
+          "prevHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d"
+        }
+      },
+      "expected": {
+        "valid": false,
+        "reason": "bad-genesis"
+      }
+    },
+    {
+      "name": "seq gap: message 2 was deleted (1 -> 3)",
+      "input": {
+        "previous": {
+          "seq": "1",
+          "messageHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d"
+        },
+        "next": {
+          "seq": "3",
+          "prevHash": "0x53538723acf2eb92e35c29f39fc81bfc3dfb45491fa48fc3cf420e9b581efce2"
+        }
+      },
+      "expected": {
+        "valid": false,
+        "reason": "seq-gap"
+      }
+    },
+    {
+      "name": "broken link: prevHash points to the wrong message",
+      "input": {
+        "previous": {
+          "seq": "2",
+          "messageHash": "0x53538723acf2eb92e35c29f39fc81bfc3dfb45491fa48fc3cf420e9b581efce2"
+        },
+        "next": {
+          "seq": "3",
+          "prevHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d"
+        }
+      },
+      "expected": {
+        "valid": false,
+        "reason": "broken-link"
+      }
+    },
+    {
+      "name": "replay: message 2 delivered again after 3",
+      "input": {
+        "previous": {
+          "seq": "3",
+          "messageHash": "0x24ef3fab64790898014b73e55c2e07e6b89d826bea07519010405e826ac771f7"
+        },
+        "next": {
+          "seq": "2",
+          "prevHash": "0x54526e4ac715e2b12fe22b485e311357cffe41f17e185cf83d2ac1e11106990d"
+        }
+      },
+      "expected": {
+        "valid": false,
+        "reason": "seq-gap"
+      }
+    }
+  ]
+}
