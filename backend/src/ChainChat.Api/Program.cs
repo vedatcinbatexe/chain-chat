@@ -28,6 +28,7 @@ try
     builder.Services.AddWalletAuthentication(builder.Configuration);
     builder.Services.AddSignalR();
     builder.Services.AddSingleton<IUserIdProvider, WalletUserIdProvider>();
+    builder.Services.AddSingleton<ChainChat.Infrastructure.Payments.IPaymentNotifier, HubPaymentNotifier>();
 
     var app = builder.Build();
 

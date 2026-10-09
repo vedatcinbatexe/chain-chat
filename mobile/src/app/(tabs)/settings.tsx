@@ -4,6 +4,7 @@ import { Alert, RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { ActivityIndicator, Button, Card, Divider, List, Text, useTheme } from 'react-native-paper';
 
 import { useSystemInfo } from '@/api/system';
+import { claimFaucet } from '@/chain/chatToken';
 import { BalancesRow } from '@/components/BalancesRow';
 import { CopyableValue } from '@/components/CopyableValue';
 import { env } from '@/config/env';
@@ -20,6 +21,19 @@ export default function SettingsScreen() {
   const onboarding = useOnboardingState();
   const system = useSystemInfo();
   const [refreshing, setRefreshing] = useState(false);
+  const [faucet, setFaucet] = useState<{ busy: boolean; message: string | null }>({ busy: false, message: null });
+
+  const onFaucet = async () => {
+    setFaucet({ busy: true, message: null });
+    try {
+      await claimFaucet(system.data!);
+      await queryClient.invalidateQueries({ queryKey: ['balances'] });
+      setFaucet({ busy: false, message: 'Received 100 test CHAT.' });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      setFaucet({ busy: false, message: text.includes('FaucetCooldown') ? 'The faucet gives 100 CHAT once per day — try again tomorrow.' : 'Faucet failed.' });
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -56,6 +70,16 @@ export default function SettingsScreen() {
           {encryptionPublicKey && <CopyableValue label="Encryption public key (X25519)" value={encryptionPublicKey} />}
           <Divider />
           <BalancesRow address={address} />
+          {system.data?.contracts.ChatToken && (
+            <Button mode="outlined" icon="water" onPress={onFaucet} loading={faucet.busy} disabled={faucet.busy} compact>
+              Get 100 test CHAT
+            </Button>
+          )}
+          {faucet.message && (
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              {faucet.message}
+            </Text>
+          )}
         </Card.Content>
       </Card>
 

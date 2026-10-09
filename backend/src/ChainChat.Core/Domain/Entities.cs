@@ -103,6 +103,8 @@ public class Payment
     /// <summary>Token amount in the smallest unit (uint256).</summary>
     public BigInteger Amount { get; set; }
     public PaymentStatus Status { get; set; }
+    /// <summary>Why a payment failed: TransactionNotFound, TransactionReverted or NoMatchingTransfer.</summary>
+    public string? FailureReason { get; set; }
     public long? BlockNumber { get; set; }
     public long? MessageId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

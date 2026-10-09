@@ -18,9 +18,10 @@ public sealed record MessageDto(
     string Ciphertext,
     string Signature,
     string ClientTimestamp,
-    DateTimeOffset ServerReceivedAt)
+    DateTimeOffset ServerReceivedAt,
+    PaymentDto? Payment)
 {
-    public static MessageDto From(Message m) => new(
+    public static MessageDto From(Message m, Payment? payment = null) => new(
         m.Id,
         m.ConversationId,
         EthAddress.ToChecksum(m.Sender),
@@ -30,5 +31,23 @@ public sealed record MessageDto(
         Hex.FromBytes(m.Ciphertext),
         Hex.FromBytes(m.Signature),
         m.ClientTimestamp.ToString(CultureInfo.InvariantCulture),
-        m.ServerReceivedAt);
+        m.ServerReceivedAt,
+        payment is null ? null : PaymentDto.From(payment));
 }
+
+/// <summary>
+/// The server's view of a payment claim (SDD §6.4). Apps also check the receipt on-chain themselves.
+/// Amount is the on-chain amount in wei (decimal string), known once confirmed.
+/// </summary>
+public sealed record PaymentDto(string TxHash, string Status, string? Amount, long? BlockNumber, string? FailureReason)
+{
+    public static PaymentDto From(Payment p) => new(
+        p.TxHash,
+        p.Status.ToString(),
+        p.Status == PaymentStatus.Confirmed ? p.Amount.ToString(CultureInfo.InvariantCulture) : null,
+        p.BlockNumber,
+        p.FailureReason);
+}
+
+/// <summary>Pushed when a payment is confirmed or fails.</summary>
+public sealed record PaymentUpdateDto(long MessageId, string ConversationId, PaymentDto Payment);

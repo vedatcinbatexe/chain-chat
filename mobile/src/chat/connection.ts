@@ -2,7 +2,7 @@ import { HubConnectionState, type HubConnection } from '@microsoft/signalr';
 import type { QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 
-import { conversationsQueryKey, messagesQueryKey, type MessageDto } from '@/api/conversations';
+import { conversationsQueryKey, messagesQueryKey, type MessageDto, type PaymentDto } from '@/api/conversations';
 import { createHubConnection } from '@/api/realtime';
 
 export type ChatConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -25,6 +25,14 @@ export async function startChatConnection(queryClient: QueryClient): Promise<voi
   if (!connection) {
     connection = createHubConnection('/hubs/chat');
     connection.on('MessageReceived', (message: MessageDto) => addMessageToCache(queryClient, message));
+    connection.on('PaymentUpdated', (update: { messageId: number; conversationId: string; payment: PaymentDto }) => {
+      queryClient.setQueryData<MessageDto[]>(messagesQueryKey(update.conversationId), (previous) =>
+        previous?.map((m) => (m.id === update.messageId ? { ...m, payment: update.payment } : m)),
+      );
+      // The server says the status changed — re-check the receipt on-chain ourselves.
+      queryClient.invalidateQueries({ queryKey: ['payment-check', update.payment.txHash.toLowerCase()] });
+      queryClient.invalidateQueries({ queryKey: ['balances'] });
+    });
     connection.onreconnecting(() => setStatus('reconnecting'));
     connection.onreconnected(() => {
       setStatus('connected');
