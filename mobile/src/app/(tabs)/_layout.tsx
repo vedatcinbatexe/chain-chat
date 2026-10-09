@@ -33,6 +33,7 @@ export default function TabsLayout() {
   return (
     <Tabs>
       <Tabs.Screen name="index" options={{ title: 'Chats', tabBarIcon: tabIcon('message-text-outline') }} />
+      <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: tabIcon('account-search-outline') }} />
       <Tabs.Screen name="groups" options={{ title: 'Groups', tabBarIcon: tabIcon('account-group-outline') }} />
       <Tabs.Screen name="activity" options={{ title: 'Activity', tabBarIcon: tabIcon('history') }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: tabIcon('cog-outline') }} />

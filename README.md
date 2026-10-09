@@ -64,7 +64,7 @@ docker compose up -d --build
 
 | Service | Port | Notes |
 |---|---|---|
-| API | 5080 | `/health`, `/api/v1/system/info`, `/api/v1/auth/*` (Sign-In with Ethereum), `/api/v1/drip`, API docs at `/scalar` |
+| API | 5080 | `/health`, `/api/v1/system/info`, `/api/v1/auth/*` (Sign-In with Ethereum), `/api/v1/drip`, `/api/v1/users/*` (search, profiles), API docs at `/scalar` |
 | Contracts deployer | — | One-off job: deploys the contracts to Anvil, writes `shared/deployments/anvil.json` |
 | PostgreSQL 17 | 5432 | user / password / db: `chainchat` — migrations are applied by the API on startup |
 | Anvil (local EVM chain) | 8545 | chain id `31337`, 2 s blocks, 20 funded test accounts |
@@ -113,4 +113,4 @@ dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat
 
 ## Status
 
-🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding. Next: chain indexer and messaging.
+🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles. Next: encrypted messaging.

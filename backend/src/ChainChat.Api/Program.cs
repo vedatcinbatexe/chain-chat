@@ -49,6 +49,7 @@ try
     app.MapSystemEndpoints();
     app.MapAuthEndpoints();
     app.MapDripEndpoints();
+    app.MapUserEndpoints();
 
     await app.RunAsync();
 }
