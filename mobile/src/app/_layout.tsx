@@ -37,6 +37,7 @@ export default function RootLayout() {
           <ThemeProvider value={themes.navigation}>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="user/[address]" options={{ headerShown: true, title: 'Profile', headerBackTitle: 'Back' }} />
+              <Stack.Screen name="chat/[address]" options={{ headerShown: true, title: 'Chat', headerBackTitle: 'Chats' }} />
             </Stack>
             <StatusBar style="auto" />
           </ThemeProvider>

@@ -3,6 +3,7 @@ import { Redirect, Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
 import type { ColorValue } from 'react-native';
 
+import { ChatConnection } from '@/chat/ChatConnection';
 import { ErrorScreen, LoadingScreen } from '@/components/StatusScreens';
 import { useOnboardingState } from '@/onboarding/useOnboardingState';
 
@@ -31,12 +32,16 @@ export default function TabsLayout() {
   }
 
   return (
-    <Tabs>
-      <Tabs.Screen name="index" options={{ title: 'Chats', tabBarIcon: tabIcon('message-text-outline') }} />
-      <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: tabIcon('account-search-outline') }} />
-      <Tabs.Screen name="groups" options={{ title: 'Groups', tabBarIcon: tabIcon('account-group-outline') }} />
-      <Tabs.Screen name="activity" options={{ title: 'Activity', tabBarIcon: tabIcon('history') }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: tabIcon('cog-outline') }} />
-    </Tabs>
+    <>
+      {/* One real-time connection for the whole signed-in app. */}
+      <ChatConnection />
+      <Tabs>
+        <Tabs.Screen name="index" options={{ title: 'Chats', tabBarIcon: tabIcon('message-text-outline') }} />
+        <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: tabIcon('account-search-outline') }} />
+        <Tabs.Screen name="groups" options={{ title: 'Groups', tabBarIcon: tabIcon('account-group-outline') }} />
+        <Tabs.Screen name="activity" options={{ title: 'Activity', tabBarIcon: tabIcon('history') }} />
+        <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: tabIcon('cog-outline') }} />
+      </Tabs>
+    </>
   );
 }

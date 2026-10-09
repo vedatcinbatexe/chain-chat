@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Chip, Divider, HelperText, Icon, Text, useTheme } from 'react-native-paper';
+import { Button, Card, Chip, Divider, Icon, Text, useTheme } from 'react-native-paper';
 import type { Address } from 'viem';
 
 import { useSystemInfo } from '@/api/system';
@@ -17,6 +17,7 @@ import { useWalletStore } from '@/wallet/walletStore';
 export default function UserProfileScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { address } = useLocalSearchParams<{ address: string }>();
   const myAddress = useWalletStore((state) => state.address);
   const system = useSystemInfo();
@@ -89,14 +90,13 @@ export default function UserProfileScreen() {
       </Card>
 
       {!isMe && (
-        <View>
-          <Button mode="contained" icon="message-lock-outline" disabled contentStyle={styles.buttonContent}>
-            Send encrypted message
-          </Button>
-          <HelperText type="info" style={styles.centered}>
-            End-to-end encrypted chats arrive in the next step.
-          </HelperText>
-        </View>
+        <Button
+          mode="contained"
+          icon="message-lock-outline"
+          contentStyle={styles.buttonContent}
+          onPress={() => router.push({ pathname: '/chat/[address]', params: { address: user.address } })}>
+          Send encrypted message
+        </Button>
       )}
     </ScrollView>
   );
@@ -134,5 +134,4 @@ const styles = StyleSheet.create({
   verification: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   verificationText: { flex: 1 },
   buttonContent: { paddingVertical: 6 },
-  centered: { textAlign: 'center' },
 });
