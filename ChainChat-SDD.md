@@ -85,9 +85,9 @@ The core design principle is: **the blockchain holds trust, the server holds dat
 | Technology | Purpose |
 |---|---|
 | **React Native + TypeScript** | Cross-platform mobile app |
-| **Expo** (Expo Go preferred; dev build only if a native module requires it) | Tooling and distribution. Expo Go lets classmates on iOS and Android run the app without sideloading |
+| **Expo** (SDK 57, Expo Go — verified on a physical iPhone in the Phase 1.2 spike) | Tooling and distribution. Expo Go lets classmates on iOS and Android run the app without sideloading |
 | **React Native Paper** | Material Design UI components |
-| **React Navigation** | Screen navigation |
+| **Expo Router** (built on React Navigation) | File-based screen navigation |
 | **viem** | Wallet creation, signing, contract reads/writes |
 | **expo-secure-store** | Encrypted on-device storage of private keys |
 | **tweetnacl** | X25519 + XSalsa20-Poly1305 end-to-end encryption |
