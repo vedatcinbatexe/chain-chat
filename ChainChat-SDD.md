@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.1 (MVP)
+**Version:** 1.2 (MVP)
 
 ---
 
@@ -127,7 +127,9 @@ The MVP runs as a **single API instance** (target: 50 concurrent users), so no d
 | **Slither** | Static security analysis |
 
 ### 3.4 Infrastructure & Tooling
-- **Docker Compose:** API and PostgreSQL in one command.
+- **Docker:** every server-side component (API, contract deployer, seed job) has its own Dockerfile.
+- **Docker Compose:** the complete local environment (PostgreSQL, Anvil, API, deployer and seed jobs) in one command.
+- **Terraform:** AWS infrastructure for a cloud `dev` environment (provided but not required for the demo, see §13).
 - **GitHub Actions:** CI (contract tests, backend tests, lint).
 - **Seed scripts (TypeScript + viem):** generate and fund test wallets and create on-chain demo data.
 
@@ -478,14 +480,22 @@ Merkle tree and `messageHash` implementations on the backend (C#) and mobile (Ty
 
 ## 13. Environments & Deployment
 
-| Environment | Chain | Purpose |
-|---|---|---|
-| Local | Anvil | Development, automated tests |
-| Demo | Base Sepolia | Public, verifiable demonstration |
+| Environment | Runs on | Chain | Purpose |
+|---|---|---|---|
+| **Local** | Developer laptop, Docker Compose | Anvil | Development, automated tests |
+| **Local (demo mode)** | Developer laptop, Docker Compose | Base Sepolia | Live class presentation: same local stack, pointed at the public testnet so every action is verifiable on the explorer |
+| **Dev** | AWS, provisioned with Terraform | Base Sepolia | Cloud environment, provided as infrastructure-as-code; not required for the demo |
 
-- Contracts are deployed with Foundry scripts and verified on the explorer; addresses and ABIs are exported to a shared config consumed by both the app and the backend.
-- Backend and PostgreSQL run with Docker Compose.
-- The mobile app is distributed through **Expo Go** (QR code). A development build is used only if a required native module is not available in Expo Go.
+**Local environment (`infra/local/`)**
+- Everything server-side runs in Docker Compose: PostgreSQL, Anvil, the API (built from `backend/Dockerfile`), and one-off jobs for contract deployment (`contracts/Dockerfile`) and seeding (`scripts/Dockerfile`).
+- The chain is selected by configuration: Anvil by default, Base Sepolia in demo mode.
+- The Expo dev server runs directly on the laptop (`npx expo start`), because it must show a QR code and serve phones on the local network. Phones run the app in **Expo Go** and reach the API at the laptop's LAN address. A development build is used only if a required native module is not available in Expo Go.
+
+**Dev environment (`infra/terraform/envs/dev/`)**
+- Minimal-cost AWS setup: VPC with public subnets only (no NAT gateway), ECS on a single EC2 instance, RDS PostgreSQL (`db.t4g.micro`, single-AZ), ALB with ACM certificate, Route 53, S3 (deployment artifacts and Terraform state) and ECR (images built from the same Dockerfiles).
+- Created with `terraform apply` and fully removed with `terraform destroy`. It is not deployed for the class demo.
+
+**Contracts:** deployed with Foundry scripts and verified on the explorer; addresses and ABIs are exported to `shared/deployments/` and consumed by both the app and the backend.
 
 ### 13.1 Test Data Strategy
 All demo data is synthetic but **real on-chain**:
@@ -499,7 +509,7 @@ All demo data is synthetic but **real on-chain**:
 
 ## 14. Demonstration & Provability Plan
 1. **Verified contracts:** show source code on the explorer.
-2. **Live onboarding:** classmates scan a QR code in Expo Go, receive test ETH from the drip, register, and the registration appears on the explorer.
+2. **Live onboarding:** the full stack runs on the presenter's laptop in demo mode; classmates on the same network scan the Expo QR code, receive test ETH from the drip, register, and the registration appears on the explorer.
 3. **Live payment:** a token transfer in chat, confirmed on the explorer within seconds.
 4. **Access control:** a user without the badge is denied; the badge is minted live; access is granted.
 5. **Content-blind server:** show the database contains only ciphertext.
@@ -522,6 +532,8 @@ All demo data is synthetic but **real on-chain**:
 | Merkle or hash mismatch between C# and TypeScript | Shared test vectors, checked against OpenZeppelin `MerkleProof` |
 | Scope creep | Strict MVP list; extras moved to future work |
 | Testnet congestion | Base Sepolia chosen for speed; Anvil fallback for offline demo |
+| Classroom Wi-Fi blocks phone-to-laptop traffic (client isolation) | Test the room's network beforehand; fall back to a laptop/phone hotspot, or Expo tunnel mode plus a tunnel (e.g. Cloudflare Tunnel) for the API |
+| Laptop is a single point of failure during the demo | Rehearse the full startup; keep the pre-recorded backup video |
 
 ---
 
