@@ -36,17 +36,21 @@ services:
     container_name: chainchat-anvil
     restart: unless-stopped
     entrypoint: ["anvil"]
+    # Anvil dumps its state on SIGINT (not Docker's default SIGTERM), plus every 10 s as a safety net.
+    stop_signal: SIGINT
     command:
       - --host=0.0.0.0
       - --port=8545
       - --chain-id=${ANVIL_CHAIN_ID:-31337}
       - --block-time=${ANVIL_BLOCK_TIME:-2}
       - --accounts=${ANVIL_ACCOUNTS:-20}
-      - --state=/data/anvil-state.json
+      - --state=/home/foundry/anvil-state.json
+      - --state-interval=10
     ports:
       - "${ANVIL_PORT:-8545}:8545"
     volumes:
-      - anvil-data:/data
+      # Mounted on the foundry user's home so the non-root container user can write to it.
+      - anvil-data:/home/foundry
     healthcheck:
       test: ["CMD", "cast", "block-number", "--rpc-url", "http://localhost:8545"]
       interval: 5s
