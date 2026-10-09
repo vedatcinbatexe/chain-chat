@@ -7,6 +7,7 @@ import { useSystemInfo } from '@/api/system';
 import { useBalances } from '@/chain/useBalances';
 import { CopyableValue } from '@/components/CopyableValue';
 import { env } from '@/config/env';
+import { useOnboardingState } from '@/onboarding/useOnboardingState';
 import { useWalletStore } from '@/wallet/walletStore';
 
 export default function SettingsScreen() {
@@ -16,6 +17,7 @@ export default function SettingsScreen() {
   const encryptionPublicKey = useWalletStore((state) => state.encryptionPublicKey);
   const removeWallet = useWalletStore((state) => state.remove);
 
+  const onboarding = useOnboardingState();
   const system = useSystemInfo();
   const balances = useBalances(address);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,6 +48,11 @@ export default function SettingsScreen() {
       <Card mode="elevated">
         <Card.Title title="Wallet" subtitle="Your identity on ChainChat" />
         <Card.Content style={styles.cardContent}>
+          {onboarding.kind === 'complete' && (
+            <Text variant="headlineSmall" style={styles.username}>
+              @{onboarding.username}
+            </Text>
+          )}
           {address && <CopyableValue label="Address" value={address} />}
           {encryptionPublicKey && <CopyableValue label="Encryption public key (X25519)" value={encryptionPublicKey} />}
           <Divider />
@@ -125,6 +132,7 @@ function formatAmount(value: string): string {
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 16 },
   cardContent: { gap: 8 },
+  username: { fontWeight: '700' },
   balances: { flexDirection: 'row', paddingTop: 8 },
   balance: { flex: 1, gap: 4 },
   loader: { marginVertical: 12 },

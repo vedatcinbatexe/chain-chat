@@ -1,3 +1,4 @@
+import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { Avatar, Button, Card, HelperText, Text, TextInput } from 'react-native-paper';
@@ -10,12 +11,16 @@ export default function ImportWalletScreen() {
   const [hidden, setHidden] = useState(true);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const walletReady = useWalletStore((state) => state.status === 'ready');
+
+  // A wallet exists — continue with on-chain registration.
+  if (walletReady) return <Redirect href="/register" />;
 
   const onImport = async () => {
     setImporting(true);
     setError(null);
     try {
-      await importPrivateKey(privateKey); // the onboarding layout redirects once the wallet is ready
+      await importPrivateKey(privateKey); // continues to on-chain registration once the wallet is ready
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not import this key.');
       setImporting(false);

@@ -1,5 +1,4 @@
 import { env } from '@/config/env';
-import { useSessionStore } from '@/auth/sessionStore';
 
 /** RFC 9457 ProblemDetails, as returned by the backend's error handler. */
 export interface ProblemDetails {
@@ -21,15 +20,13 @@ export class ApiError extends Error {
 
 const TIMEOUT_MS = 10_000;
 
-/** JSON request to the ChainChat API. Adds the JWT once signed in (Phase 5) and turns errors into ApiError. */
+/** JSON request to the ChainChat API; errors become ApiError. For endpoints that need sign-in, use authedRequest. */
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  const token = useSessionStore.getState().token;
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (init.body !== undefined) headers['Content-Type'] = 'application/json';
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
     const response = await fetch(`${env.apiUrl}${path}`, {

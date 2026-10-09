@@ -1,10 +1,11 @@
-import { concat, encodeAbiParameters, keccak256, numberToHex, toHex, type Address, type Hex } from "viem";
+import { concat, encodeAbiParameters, hashMessage, keccak256, numberToHex, recoverMessageAddress, toHex, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { directConversationId } from "./conversationId.js";
 import { checkChainLink } from "./hashChain.js";
 import { ciphertextHash, encodeMessage, messageHash, UINT64_MAX, ZERO_HASH, type MessageHeader } from "./messageHash.js";
 import { leafHash, merkleProof, merkleRoot, verifyProof } from "./merkle.js";
 import { SECP256K1_N, signingDigest, signMessageHash, splitSignature, verifyMessageSignature } from "./signature.js";
+import { formatSiweMessage, type SiweFields } from "./siwe.js";
 
 /**
  * Anvil's default, publicly known development keys (accounts #0–#2).
@@ -248,6 +249,55 @@ function buildMerkleVectors() {
   };
 }
 
+async function buildSiweVectors() {
+  const cases: { name: string; signer: Name; fields: SiweFields }[] = [
+    {
+      name: "alice signs in on local Anvil",
+      signer: "alice",
+      fields: {
+        domain: "chainchat.local",
+        address: address("alice"),
+        statement: "Sign in to ChainChat with your wallet.",
+        uri: "chainchat://app",
+        chainId: 31337,
+        nonce: "k3Jd8aQ2pLx9Zr7T",
+        issuedAt: "2026-01-01T00:00:00.000Z",
+        expirationTime: "2026-01-01T00:05:00.000Z",
+      },
+    },
+    {
+      name: "bob signs in on Base Sepolia",
+      signer: "bob",
+      fields: {
+        domain: "chainchat.local",
+        address: address("bob"),
+        statement: "Sign in to ChainChat with your wallet.",
+        uri: "chainchat://app",
+        chainId: 84532,
+        nonce: "Q7wErTy9uIoP0aS1",
+        issuedAt: "2026-03-15T12:30:45.123Z",
+        expirationTime: "2026-03-15T12:35:45.123Z",
+      },
+    },
+  ];
+
+  return {
+    description:
+      "Sign-In with Ethereum (EIP-4361) messages and their personal_sign (EIP-191) signatures. message = formatSiweMessage(fields); digest = keccak256(\"\\x19Ethereum Signed Message:\\n\" ‖ len(message) ‖ message). See SPEC.md §7.",
+    cases: await Promise.all(
+      cases.map(async (c) => {
+        const message = formatSiweMessage(c.fields);
+        const signature = await privateKeyToAccount(ANVIL_KEYS[c.signer]).signMessage({ message });
+        return {
+          name: c.name,
+          input: { privateKey: ANVIL_KEYS[c.signer], fields: c.fields },
+          expected: { message, digest: hashMessage(message), signature, recoveredAddress: await recoverMessageAddress({ message, signature }) },
+        };
+      }),
+    ),
+  };
+}
+
 /** Every vector file, keyed by file name. */
 export async function buildAllVectors(): Promise<Record<string, unknown>> {
   return {
@@ -256,6 +306,7 @@ export async function buildAllVectors(): Promise<Record<string, unknown>> {
     "hash-chain.json": buildHashChainVectors(),
     "signatures.json": await buildSignatureVectors(),
     "merkle.json": buildMerkleVectors(),
+    "siwe.json": await buildSiweVectors(),
   };
 }
 
