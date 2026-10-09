@@ -55,6 +55,7 @@ try
     app.MapDripEndpoints();
     app.MapUserEndpoints();
     app.MapConversationEndpoints();
+    app.MapAnchoringEndpoints();
     app.MapHub<ChatHub>(ChatHub.Path);
 
     await app.RunAsync();
