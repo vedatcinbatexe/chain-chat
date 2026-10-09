@@ -5,6 +5,7 @@ import { Button, Chip, HelperText, Modal, Portal, Text, TextInput, useTheme } fr
 import { BaseError, ContractFunctionRevertedError, formatUnits, parseUnits } from 'viem';
 
 import { useSystemInfo } from '@/api/system';
+import { DismissKeyboard } from '@/components/DismissKeyboard';
 import { claimFaucet } from '@/chain/chatToken';
 import { useBalances } from '@/chain/useBalances';
 import { useWalletStore } from '@/wallet/walletStore';
@@ -73,6 +74,7 @@ export function SendPaymentSheet({ visible, peerUsername, onDismiss, onSend }: P
   return (
     <Portal>
       <Modal visible={visible} onDismiss={busy ? undefined : close} contentContainerStyle={[styles.sheet, { backgroundColor: theme.colors.surface }]}>
+        <DismissKeyboard style={styles.body}>
         <Text variant="titleLarge" style={styles.title}>
           Send CHAT to @{peerUsername}
         </Text>
@@ -113,6 +115,7 @@ export function SendPaymentSheet({ visible, peerUsername, onDismiss, onSend }: P
         <Button onPress={close} disabled={!!busy}>
           Cancel
         </Button>
+        </DismissKeyboard>
       </Modal>
     </Portal>
   );
@@ -143,7 +146,8 @@ function describe(error: unknown): string {
 }
 
 const styles = StyleSheet.create({
-  sheet: { margin: 16, borderRadius: 20, padding: 20, gap: 10 },
+  sheet: { margin: 16, borderRadius: 20, padding: 20 },
+  body: { flex: 0, gap: 10 },
   title: { fontWeight: '700' },
   chips: { flexDirection: 'row', gap: 8 },
   buttonContent: { paddingVertical: 6 },
