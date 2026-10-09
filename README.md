@@ -75,7 +75,17 @@ Ports and credentials can be changed by copying `infra/local/.env.example` to `i
 
 Stop everything with `docker compose down`, or add `-v` to also delete all data.
 
-The seed job will be added to the same Compose file in Phase 15. Contract development is described in [contracts/README.md](contracts/README.md). The Expo dev server runs directly on the laptop (`npx expo start`) so phones on the same network can scan its QR code.
+The seed job will be added to the same Compose file in Phase 15. Contract development is described in [contracts/README.md](contracts/README.md).
+
+### Mobile app
+
+Runs on your phone through Expo Go, served from your computer — see [mobile/README.md](mobile/README.md).
+
+```bash
+cd mobile
+npm install
+npm start    # scan the QR code with your phone
+``` The Expo dev server runs directly on the laptop (`npx expo start`) so phones on the same network can scan its QR code.
 
 ### Backend development
 
@@ -103,4 +113,4 @@ dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat
 
 ## Status
 
-🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts. Next: authentication, mobile app.
+🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation (wallet on the phone). Next: authentication and onboarding.
