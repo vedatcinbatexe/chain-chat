@@ -29,7 +29,8 @@ chain-chat/
 ├── shared/
 │   ├── deployments/        # Contract addresses + ABIs per network (generated)
 │   └── test-vectors/       # Shared hash / Merkle test vectors (C# ⇄ TypeScript ⇄ Solidity)
-├── scripts/                # TypeScript seed and utility scripts + Dockerfile (seed job)
+├── scripts/
+│   └── demo/               # Local demo tools: seed users, chat bot, stolen-key attack
 ├── infra/
 │   ├── local/              # Docker Compose: the complete local environment
 │   └── terraform/
@@ -86,6 +87,15 @@ cd mobile
 npm install
 npm start    # scan the QR code with your phone
 ``` The Expo dev server runs directly on the laptop (`npx expo start`) so phones on the same network can scan its QR code.
+
+### Demo tools
+
+With the local environment running, [scripts/demo](scripts/demo/README.md) gives the phone someone to talk to: it registers the demo users, runs a bot that answers messages (1:1 and in groups), and can stage the "stolen key" tampering attack that on-chain anchoring detects.
+
+```bash
+node scripts/demo/seed-users.mjs
+node scripts/demo/chat-bot.mjs bob
+```
 
 ### Backend development
 

@@ -79,3 +79,6 @@ terraform.rc
 
 # ---- Generated local deployment (each machine has its own Anvil) ----
 shared/deployments/anvil.json
+
+# ---- Demo scripts ----
+scripts/demo/.stolen-key-backup.json
