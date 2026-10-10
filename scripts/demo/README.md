@@ -48,6 +48,9 @@ node scripts/demo/chat-bot.mjs carol "chainchat://join/<code>"
 
 Run one process per demo user; several bots can be in the same group (they do not answer each other).
 
+The bot can stay running for a whole demo: it signs in again before its session expires (sessions last an hour),
+reconnects by itself when the API restarts, and can be started before the API is up.
+
 For an **NFT-gated group**, the bot's wallet needs every badge the group requires first: mint them to it in the
 admin dashboard (Users → the demo user → Mint badge), then start the bot with the invite link. Like the apps, the bot checks every member's badges on the chain
 before encrypting a group message to them.
