@@ -29,6 +29,7 @@ chain-chat/
 │   └── tests/
 ├── mobile/                 # Expo (React Native + TypeScript) app — runs on phones via Expo Go
 ├── web-dashboard/          # Admin panel (React + TypeScript + Tailwind CSS) + Dockerfile
+├── web-exchange/           # Simulated exchange portal: test wallets, deposits and withdrawals + Dockerfile
 ├── shared/
 │   ├── deployments/        # Contract addresses + ABIs per network (generated)
 │   └── test-vectors/       # Shared hash / Merkle test vectors (C# ⇄ TypeScript ⇄ Solidity)
@@ -71,6 +72,7 @@ docker compose up -d --build
 | API | 5080 | `/health`, `/api/v1/system/info`, `/api/v1/auth/*` (Sign-In with Ethereum), `/api/v1/drip`, `/api/v1/users/*` (search, profiles), `/api/v1/conversations/*`, `/api/v1/messages/{id}/proof`, real-time hub `/hubs/chat`, API docs at `/scalar` |
 | Contracts deployer | — | One-off job: deploys the contracts to Anvil, writes `shared/deployments/anvil.json` |
 | Admin dashboard | 5173 | React admin panel — see [web-dashboard/README.md](web-dashboard/README.md) |
+| Exchange portal | 5174 | Simulated exchange for deposits and withdrawals — see [web-exchange/README.md](web-exchange/README.md) |
 | PostgreSQL 17 | 5432 | user / password / db: `chainchat` — migrations are applied by the API on startup |
 | Anvil (local EVM chain) | 8545 | chain id `31337`, 2 s blocks, 20 funded test accounts |
 | Redis *(optional)* | 6379 | `docker compose --profile extras up -d` |
@@ -95,6 +97,10 @@ npm start    # scan the QR code with your phone
 ### Admin dashboard
 
 A web admin panel at <http://localhost:5173> for the people who run ChainChat: users (ban, add balance), groups, message metadata, transactions, admins, audit log and system settings. Only admin wallets can sign in, with Sign-In with Ethereum; locally, "Use the local dev account" signs in as the root admin. Details in [web-dashboard/README.md](web-dashboard/README.md).
+
+### Exchange portal (simulated)
+
+<http://localhost:5174> plays the outside world: create wallets with test balances of ETH, CHAT, tUSD and tBTC, deposit them to a ChainChat user, and receive withdrawals sent from the app (Settings → Withdraw, which lists your exchange wallets). Every balance and transfer is on the local chain. Details in [web-exchange/README.md](web-exchange/README.md).
 
 ### Demo tools
 
@@ -139,8 +145,9 @@ dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat
 | Backend | build, unit tests, and API integration tests against a real PostgreSQL (Testcontainers) |
 | Mobile app | typecheck, lint, tests |
 | Web dashboard | typecheck and build |
-| Docker images | the API, dashboard and contracts-deployer images build |
+| Exchange portal | typecheck and build |
+| Docker images | the API, dashboard, exchange portal and contracts-deployer images build |
 
 ## Status
 
-🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles, end-to-end encrypted 1:1 messaging, on-chain message anchoring with in-app verification, in-chat CHAT payments verified from on-chain receipts, group chat with invite links, typing indicators, online status and reactions, NFT-gated groups (the creator chooses which ERC-721 badges members must hold), web admin dashboard, on-chain activity screen, in-app notifications and admin announcements, CI. Next: testnet deployment.
+🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles, end-to-end encrypted 1:1 messaging, on-chain message anchoring with in-app verification, in-chat CHAT payments verified from on-chain receipts, group chat with invite links, typing indicators, online status and reactions, NFT-gated groups (the creator chooses which ERC-721 badges members must hold), web admin dashboard, on-chain activity screen, in-app notifications and admin announcements, CI, several assets (ETH, CHAT, tUSD, tBTC) with a simulated exchange for deposits and withdrawals.

@@ -55,6 +55,8 @@ export interface UserDetail {
   conversations: number;
   paymentsSent: number;
   paymentsReceived: number;
+  /** Every asset's balance in wei (ETH, CHAT, tUSD, …), read from the chain. */
+  assets: { symbol: string; amount: string }[];
   /** Badges the wallet holds, by type (read from the chain). */
   badges: { id: number; name: string; count: number }[];
   groups: { id: string; name: string; joinedAt: string }[];
@@ -147,6 +149,21 @@ export interface AnchorRow {
 }
 
 export type Asset = 'ETH' | 'CHAT';
+
+/** A deposit, withdrawal or transfer recorded from the chain (the exchange portal and the app's Send screen). */
+export interface TransferRow {
+  txHash: string;
+  from: string;
+  fromUsername: string | null;
+  fromExchangeWallet: string | null;
+  to: string;
+  toUsername: string | null;
+  toExchangeWallet: string | null;
+  asset: string;
+  amount: string;
+  kind: 'Funding' | 'Deposit' | 'Withdrawal' | 'Transfer';
+  createdAt: string;
+}
 
 export interface FundingRow {
   id: number;

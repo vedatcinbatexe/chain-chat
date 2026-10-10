@@ -44,6 +44,7 @@ try
 
     app.UseExceptionHandler();
     app.UseGroupErrors();
+    app.UseAssetErrors();
     app.UseStatusCodePages();
     app.UseSerilogRequestLogging();
     app.UseAuthentication();
@@ -65,6 +66,7 @@ try
     app.MapAnchoringEndpoints();
     app.MapGroupEndpoints();
     app.MapActivityEndpoints();
+    app.MapExchangeEndpoints();
     app.MapAdminEndpoints();
     app.MapHub<ChatHub>(ChatHub.Path);
 

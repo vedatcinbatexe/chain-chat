@@ -6,7 +6,7 @@ import { FundDialog } from '@/components/FundDialog';
 import { Badge, Button, Card, DataTable, Mono, PageHeader, Pagination, UserCell, type Column } from '@/components/ui';
 import { api, query } from '@/lib/api';
 import { formatAmount, formatDate, formatNumber } from '@/lib/format';
-import type { AnchorRow, DripRow, FundingRow, Paged, PaymentRow } from '@/lib/types';
+import type { AnchorRow, DripRow, FundingRow, Paged, PaymentRow, TransferRow } from '@/lib/types';
 
 const STATUS_TONE = { Confirmed: 'green', Pending: 'amber', Submitted: 'amber', Failed: 'red' } as const;
 
@@ -36,6 +36,28 @@ const FUNDINGS: Column<FundingRow>[] = [
   { header: 'Time', cell: (f) => <span className="whitespace-nowrap">{formatDate(f.createdAt)}</span> },
 ];
 
+/** A ChainChat user, an exchange wallet by its label, or a bare address. */
+function Party({ address, username, exchangeWallet }: { address: string; username: string | null; exchangeWallet: string | null }) {
+  if (username) return <UserCell address={address} username={username} />;
+  return (
+    <span className="block">
+      <span className="block text-sm font-medium text-slate-900">{exchangeWallet ? `Exchange · ${exchangeWallet}` : address.startsWith('0x000000000000') ? 'Newly minted' : 'External address'}</span>
+      <Mono value={address} />
+    </span>
+  );
+}
+
+const TRANSFER_TONE = { Deposit: 'green', Withdrawal: 'amber', Transfer: 'indigo', Funding: 'gray' } as const;
+
+const TRANSFERS: Column<TransferRow>[] = [
+  { header: 'Kind', cell: (t) => <Badge tone={TRANSFER_TONE[t.kind]}>{t.kind === 'Funding' ? 'Balance added' : t.kind}</Badge> },
+  { header: 'From', cell: (t) => <Party address={t.from} username={t.fromUsername} exchangeWallet={t.fromExchangeWallet} /> },
+  { header: 'To', cell: (t) => <Party address={t.to} username={t.toUsername} exchangeWallet={t.toExchangeWallet} /> },
+  { header: 'Amount', align: 'right', cell: (t) => `${formatAmount(t.amount)} ${t.asset}` },
+  { header: 'Transaction', cell: (t) => <Mono value={t.txHash} head={10} tail={6} /> },
+  { header: 'Time', cell: (t) => <span className="whitespace-nowrap">{formatDate(t.createdAt)}</span> },
+];
+
 const DRIPS: Column<DripRow>[] = [
   { header: 'Account', cell: (d) => <UserCell address={d.address} username={d.username} /> },
   { header: 'Amount', align: 'right', cell: (d) => `${formatAmount(d.amount)} ETH` },
@@ -55,6 +77,7 @@ const ANCHORS: Column<AnchorRow>[] = [
 
 const TABS = [
   { key: 'payments', label: 'Payments', hint: 'CHAT sent between users inside chats, confirmed from on-chain receipts.' },
+  { key: 'transfers', label: 'Deposits & withdrawals', hint: 'Assets moved between the exchange portal and ChainChat wallets, and transfers sent from the app. Read from the chain.' },
   { key: 'fundings', label: 'Admin funding', hint: 'Balance added by admins from this dashboard.' },
   { key: 'drips', label: 'Gas drips', hint: 'One-time test ETH sent to new wallets so they can register.' },
   { key: 'anchors', label: 'Anchor batches', hint: 'Merkle roots of message batches written to the Anchor contract.' },
@@ -106,6 +129,7 @@ export function TransactionsPage() {
         </div>
         <p className="border-b border-slate-100 px-5 py-2.5 text-xs text-slate-500">{TABS.find((t) => t.key === tab)!.hint}</p>
         {tab === 'payments' && <TransactionTable tab="payments" columns={PAYMENTS} rowKey={(p) => p.txHash} />}
+        {tab === 'transfers' && <TransactionTable tab="transfers" columns={TRANSFERS} rowKey={(t) => t.txHash} />}
         {tab === 'fundings' && <TransactionTable tab="fundings" columns={FUNDINGS} rowKey={(f) => f.id} />}
         {tab === 'drips' && <TransactionTable tab="drips" columns={DRIPS} rowKey={(d) => d.address} />}
         {tab === 'anchors' && <TransactionTable tab="anchors" columns={ANCHORS} rowKey={(a) => a.id} />}

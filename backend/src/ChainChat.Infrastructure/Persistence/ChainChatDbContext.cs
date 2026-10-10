@@ -22,6 +22,8 @@ public class ChainChatDbContext(DbContextOptions<ChainChatDbContext> options) : 
     public DbSet<AdminAuditEntry> AdminAuditEntries => Set<AdminAuditEntry>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<AssetTransfer> AssetTransfers => Set<AssetTransfer>();
+    public DbSet<ExchangeWallet> ExchangeWallets => Set<ExchangeWallet>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChainChatDbContext).Assembly);

@@ -14,7 +14,7 @@ namespace ChainChat.Api.Endpoints;
 /// </summary>
 public static class ActivityEndpoints
 {
-    /// <param name="Kind">GasDrip or AdminFunding.</param>
+    /// <param name="Kind">GasDrip, AdminFunding, or a recorded transfer: Funding, Deposit, Withdrawal, Transfer.</param>
     /// <param name="Amount">The amount the server recorded, in wei (decimal string).</param>
     public sealed record EthTransferHint(string TxHash, string Kind, string Amount, DateTimeOffset CreatedAt);
 
@@ -26,11 +26,15 @@ public static class ActivityEndpoints
 
                 var drips = await db.GasDrips.AsNoTracking().Where(d => d.Address == me).ToListAsync(ct);
                 var fundings = await db.AdminFundings.AsNoTracking().Where(f => f.Address == me && f.Asset == FundingAsset.Eth).ToListAsync(ct);
+                // ETH moved through the exchange portal or sent from the app (deposits, withdrawals, transfers).
+                var transfers = await db.AssetTransfers.AsNoTracking().Where(t => t.Asset == "ETH" && (t.To == me || t.From == me)).ToListAsync(ct);
 
                 return drips
                     .Where(d => d.TxHash.StartsWith("0x", StringComparison.Ordinal)) // skip a drip that is still being sent
                     .Select(d => new EthTransferHint(d.TxHash, "GasDrip", d.AmountWei.ToString(CultureInfo.InvariantCulture), d.CreatedAt))
                     .Concat(fundings.Select(f => new EthTransferHint(f.TxHash, "AdminFunding", f.Amount.ToString(CultureInfo.InvariantCulture), f.CreatedAt)))
+                    .Concat(transfers.Select(t => new EthTransferHint(t.TxHash, t.Kind.ToString(), t.Amount.ToString(CultureInfo.InvariantCulture), t.CreatedAt)))
+                    .DistinctBy(t => t.TxHash)
                     .OrderByDescending(t => t.CreatedAt)
                     .ToList();
             })

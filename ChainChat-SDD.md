@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.7 (MVP)
+**Version:** 1.8 (MVP)
 
 ---
 
@@ -56,6 +56,7 @@ ChainChat applies the cryptographic and structural building blocks covered in BL
 | 6 | Group chat with invite links, typing, presence and reactions; optional NFT gating: the creator chooses the badge types members must hold | Member keys resolved from chain; ERC-721 ownership checked on-chain for gated groups |
 | 7 | Signed, hash-chained messages with on-chain anchoring & verification | Wallet signatures + Merkle roots stored on-chain |
 | 8 | Blockchain activity screen: the wallet's own on-chain history and recent anchor batches, rebuilt in the app from contract events | Event logs read directly from the chain; explorer links for every transaction |
+| 10 | Several assets, with deposits from and withdrawals to a simulated exchange (§4.5) | Native ETH and ERC-20 transfers signed on the device; balances read only from the chain |
 | 9 | Web admin dashboard (§4.4) | Wallet-based admin login; ERC-20 minting by the contract owner; shows what a server operator can and cannot do |
 
 ### 2.2 On-Chain vs Off-Chain Decision
@@ -232,6 +233,19 @@ A web application (`web-dashboard/`: React, TypeScript, Tailwind CSS) for the pe
 
 **What admins cannot do.** The trust boundaries of §4.3 apply to admins as well. They cannot read messages (the server has only ciphertext), and the dashboard deliberately has no action to edit or delete messages: every message is signed, hash-chained and anchored, so such a change would be detected by the apps. They also cannot take away a username or funds, because those live on the chain. Admin power is limited to *availability on this server* (bans, pausing, group membership) and to the admin key's on-chain rights (minting, anchoring).
 
+### 4.5 Assets, Deposits and Withdrawals
+**Assets.** A wallet can hold and send the chain's native ETH and several ERC-20 tokens: CHAT, and the test tokens tUSD and tBTC (one generic `TestToken` contract deployed twice). The backend lists the available assets in `/api/v1/system/info`; the app shows a balance for each and can send any of them.
+
+**Balances are never stored.** Every balance shown anywhere — the app, the admin dashboard, the exchange portal — is read from the chain (`balanceOf`, or the account balance for ETH). The database keeps only a *history* of transfers, as a log for the screens.
+
+**The exchange portal** (`web-exchange/`) is a simulated exchange that stands for the outside world. A visitor creates wallets, gives them test balances, and deposits from them into ChainChat.
+- An exchange wallet is a real address on the chain whose key the **server** holds, as an exchange holds its customers' wallets. It is never a user's ChainChat wallet.
+- *Adding a balance* mints the token to the wallet (or sends test ETH) with the admin key.
+- *A deposit* is an ordinary ERC-20 or ETH transfer from the exchange wallet to the user's address, found by username. The server sends it, records it, and notifies the user's app.
+- The portal has no login and can create balances, so its API exists only when `Exchange:Enabled` is set (local development).
+
+**Withdrawals and sending.** In the app, *Withdraw* lists the wallets of the user's exchange account (linked once, by its name) and sends an asset to the one they pick; *Send* does the same to any address or username. The transaction is **signed on the phone and sent straight to the chain**; the server never holds the user's key and cannot move a user's funds. Afterwards the app reports the transaction hash. The server does not take the app's word for it: it reads the transaction from the chain, checks that it came from the signed-in wallet, records it, and notifies the recipient if they are a ChainChat user. If the report is lost, nothing is lost: the transfer is final on-chain and appears in the Activity tab regardless.
+
 ---
 
 ## 5. Blockchain Design
@@ -253,6 +267,7 @@ Four small contracts, each with a single responsibility:
 |---|---|---|---|
 | **Registry** | Custom | Maps username ↔ address ↔ encryption public key; unique usernames; key rotation | `UserRegistered`, `KeyUpdated` |
 | **ChatToken** | ERC-20 | Test currency for in-chat payments; rate-limited faucet for test users | `Transfer` |
+| **TestToken** | ERC-20 | Extra test assets (tUSD, tBTC): plain tokens with owner-only minting, for deposits, withdrawals and transfers | `Transfer` |
 | **ClassBadge** | ERC-721 | Badges with types (e.g. Student, Instructor) for gated groups; types created and badges minted by admin | `Transfer`, `BadgeTypeCreated` |
 | **Anchor** | Custom | Stores Merkle roots of message batches with batch ranges and timestamps; append-only | `RootAnchored` |
 
@@ -421,6 +436,7 @@ Both the backend (C#) and mobile (TypeScript) implementations follow this specif
 - **AnchorBatch:** root, message range, tx hash, block number.
 - **ChainSyncState:** last processed block per contract (for indexer resume).
 - **GasDrip:** address, tx hash, timestamp (one per address).
+- **Assets (§4.5):** AssetTransfer (a history of deposits, withdrawals and transfers — not a ledger), ExchangeWallet (the simulated exchange's wallets and their keys).
 - **Admin dashboard (§4.4):** AdminAccount (admins added by root admins), BannedUser, AdminFunding (asset, amount, tx hash, admin), AdminAuditEntry (append-only), SystemSetting (runtime settings).
 
 ---

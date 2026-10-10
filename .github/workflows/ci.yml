@@ -38,7 +38,7 @@ jobs:
       # The backend, app and dashboard use the ABI files in shared/deployments/abi; they must match the contracts.
       - name: Committed ABIs match the contracts
         run: |
-          for contract in Registry ChatToken ClassBadge Anchor; do
+          for contract in Registry ChatToken ClassBadge Anchor TestToken; do
             if ! diff <(forge inspect "$contract" abi --json | jq -S .) <(jq -S . "../shared/deployments/abi/$contract.json") > /dev/null; then
               echo "::error file=shared/deployments/abi/$contract.json::ABI is out of date. Run contracts/deploy.sh (or forge inspect $contract abi --json) and commit the result."
               exit 1
@@ -121,6 +121,23 @@ jobs:
       - name: Typecheck and build
         run: npm run build
 
+  exchange:
+    name: Exchange portal
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-exchange
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web-exchange/package-lock.json
+      - run: npm ci
+      - name: Typecheck and build
+        run: npm run build
+
   docker:
     name: Docker images build
     runs-on: ubuntu-latest
@@ -130,5 +147,7 @@ jobs:
         run: docker build --tag chainchat-api:ci backend
       - name: Dashboard image
         run: docker build --tag chainchat-dashboard:ci web-dashboard
+      - name: Exchange portal image
+        run: docker build --tag chainchat-exchange:ci web-exchange
       - name: Contracts deployer image
         run: docker build --tag chainchat-contracts:ci contracts

@@ -8,13 +8,13 @@ const tx = '0xAAAA000000000000000000000000000000000000000000000000000000000001' 
 
 describe('classifyTokenTransfer', () => {
   it('tells sent from received, with the other wallet as counterparty', () => {
-    expect(classifyTokenTransfer({ from: me, to: bob, txHash: tx }, me, new Set())).toEqual({ kind: 'chat-sent', counterparty: bob });
-    expect(classifyTokenTransfer({ from: bob, to: me.toLowerCase() as Address, txHash: tx }, me, new Set())).toEqual({ kind: 'chat-received', counterparty: bob });
+    expect(classifyTokenTransfer({ from: me, to: bob, txHash: tx }, me, new Set())).toEqual({ kind: 'token-sent', counterparty: bob });
+    expect(classifyTokenTransfer({ from: bob, to: me.toLowerCase() as Address, txHash: tx }, me, new Set())).toEqual({ kind: 'token-received', counterparty: bob });
   });
 
   it('tells a faucet claim from an admin mint', () => {
-    expect(classifyTokenTransfer({ from: zeroAddress, to: me, txHash: tx }, me, new Set([tx.toLowerCase()]))).toEqual({ kind: 'chat-faucet' });
-    expect(classifyTokenTransfer({ from: zeroAddress, to: me, txHash: tx }, me, new Set())).toEqual({ kind: 'chat-minted' });
+    expect(classifyTokenTransfer({ from: zeroAddress, to: me, txHash: tx }, me, new Set([tx.toLowerCase()]))).toEqual({ kind: 'token-faucet' });
+    expect(classifyTokenTransfer({ from: zeroAddress, to: me, txHash: tx }, me, new Set())).toEqual({ kind: 'token-minted' });
   });
 });
 

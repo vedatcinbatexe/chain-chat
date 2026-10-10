@@ -70,9 +70,6 @@ public sealed class AdminFundingService(
     TimeProvider time,
     ILogger<AdminFundingService> logger)
 {
-    // One funding transaction at a time, so two admins never use the same account nonce.
-    private static readonly SemaphoreSlim Gate = new(1, 1);
-
     public bool Enabled => options.Value.FunderPrivateKey.Length > 0;
 
     public string? FunderAddress => Enabled ? new Account(options.Value.FunderPrivateKey).Address : null;
@@ -100,7 +97,7 @@ public sealed class AdminFundingService(
 
         var web3 = new Web3(new Account(settings.FunderPrivateKey, chainOptions.Value.ChainId), chainOptions.Value.RpcUrls[0]);
         string txHash;
-        await Gate.WaitAsync(ct);
+        await FunderGate.Lock.WaitAsync(ct);
         try
         {
             var receipt = await web3.Eth.GetContractTransactionHandler<CreateBadgeTypeFunction>()
@@ -110,7 +107,7 @@ public sealed class AdminFundingService(
         }
         finally
         {
-            Gate.Release();
+            FunderGate.Lock.Release();
         }
 
         var created = (await badges.TypesAsync(contract, ct)).Last(t => t.Name == trimmed);
@@ -131,7 +128,7 @@ public sealed class AdminFundingService(
 
         var web3 = new Web3(new Account(settings.FunderPrivateKey, chainOptions.Value.ChainId), chainOptions.Value.RpcUrls[0]);
         string txHash;
-        await Gate.WaitAsync(ct);
+        await FunderGate.Lock.WaitAsync(ct);
         try
         {
             var receipt = await web3.Eth.GetContractTransactionHandler<MintBadgeFunction>()
@@ -141,7 +138,7 @@ public sealed class AdminFundingService(
         }
         finally
         {
-            Gate.Release();
+            FunderGate.Lock.Release();
         }
 
         var funding = new AdminFunding
@@ -176,7 +173,7 @@ public sealed class AdminFundingService(
         var web3 = new Web3(new Account(settings.FunderPrivateKey, chainOptions.Value.ChainId), chainOptions.Value.RpcUrls[0]);
 
         string txHash;
-        await Gate.WaitAsync(ct);
+        await FunderGate.Lock.WaitAsync(ct);
         try
         {
             if (asset == FundingAsset.Eth)
@@ -195,7 +192,7 @@ public sealed class AdminFundingService(
         }
         finally
         {
-            Gate.Release();
+            FunderGate.Lock.Release();
         }
 
         var funding = new AdminFunding
