@@ -29,8 +29,25 @@ public sealed class BalanceOfFunction : FunctionMessage
     public string Account { get; set; } = "";
 }
 
-/// <summary>Balances in the smallest unit (wei). Chat is null when ChatToken is not deployed.</summary>
-public sealed record AccountBalances(BigInteger Eth, BigInteger? Chat);
+[Function("mint", "uint256")]
+public sealed class MintBadgeFunction : FunctionMessage
+{
+    [Parameter("address", "to", 1)]
+    public string To { get; set; } = "";
+
+    [Parameter("uint256", "typeId", 2)]
+    public BigInteger TypeId { get; set; }
+}
+
+[Function("createBadgeType", "uint256")]
+public sealed class CreateBadgeTypeFunction : FunctionMessage
+{
+    [Parameter("string", "name", 1)]
+    public string Name { get; set; } = "";
+}
+
+/// <summary>ETH and CHAT in the smallest unit (wei); Badges is a count. Null when that contract is not deployed.</summary>
+public sealed record AccountBalances(BigInteger Eth, BigInteger? Chat, BigInteger? Badges);
 
 /// <summary>Why funding was refused; the code is returned to the dashboard.</summary>
 public sealed class FundingException(string code) : Exception(code)
@@ -47,6 +64,7 @@ public sealed class AdminFundingService(
     ChainClient chain,
     ContractDeployments deployments,
     AdminService admins,
+    BadgeService badges,
     IOptions<AdminOptions> options,
     IOptions<ChainOptions> chainOptions,
     TimeProvider time,
@@ -66,7 +84,81 @@ public sealed class AdminFundingService(
         BigInteger? chat = deployments.TryGet(ContractDeployments.ChatToken, out var token)
             ? await chain.ExecuteAsync(web3 => web3.Eth.GetContractQueryHandler<BalanceOfFunction>().QueryAsync<BigInteger>(token.Address, new BalanceOfFunction { Account = checksum }), ct)
             : null;
-        return new AccountBalances(eth, chat);
+        BigInteger? badgeCount = badges.ContractAddress is { } badge ? await badges.BalanceAsync(badge, checksum, ct) : null;
+        return new AccountBalances(eth, chat, badgeCount);
+    }
+
+    /// <summary>Adds a new badge type to the ClassBadge contract (owner only) and returns it.</summary>
+    public async Task<BadgeType> CreateBadgeTypeAsync(string admin, string name, CancellationToken ct)
+    {
+        var settings = options.Value;
+        if (!Enabled) throw new FundingException("FundingDisabled");
+        var trimmed = name.Trim();
+        if (trimmed.Length is 0 or > 32 || System.Text.Encoding.UTF8.GetByteCount(trimmed) > 32) throw new FundingException("InvalidBadgeName");
+        var contract = badges.ContractAddress ?? throw new FundingException("BadgeNotDeployed");
+        if ((await badges.TypesAsync(contract, ct)).Any(t => string.Equals(t.Name, trimmed, StringComparison.OrdinalIgnoreCase))) throw new FundingException("BadgeNameTaken");
+
+        var web3 = new Web3(new Account(settings.FunderPrivateKey, chainOptions.Value.ChainId), chainOptions.Value.RpcUrls[0]);
+        string txHash;
+        await Gate.WaitAsync(ct);
+        try
+        {
+            var receipt = await web3.Eth.GetContractTransactionHandler<CreateBadgeTypeFunction>()
+                .SendRequestAndWaitForReceiptAsync(contract, new CreateBadgeTypeFunction { Name = trimmed }, ct);
+            if (receipt.Status?.Value != 1) throw new FundingException("TransactionReverted");
+            txHash = receipt.TransactionHash;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+
+        var created = (await badges.TypesAsync(contract, ct)).Last(t => t.Name == trimmed);
+        admins.Audit(admin, "CreateBadgeType", $"#{created.Id}", $"{created.Name} · {txHash}");
+        await db.SaveChangesAsync(CancellationToken.None);
+        logger.LogInformation("Admin {Admin} created badge type {Id} \"{Name}\": {TxHash}", EthAddress.Normalize(admin), created.Id, created.Name, txHash);
+        return created;
+    }
+
+    /// <summary>Mints one ClassBadge (ERC-721) of the given type to the address, so it can join groups that require it (SDD §6.5).</summary>
+    public async Task<AdminFunding> MintBadgeAsync(string admin, string address, int typeId, CancellationToken ct)
+    {
+        var settings = options.Value;
+        if (!Enabled) throw new FundingException("FundingDisabled");
+        if (!EthAddress.IsValid(address)) throw new FundingException("InvalidAddress");
+        var contract = badges.ContractAddress ?? throw new FundingException("BadgeNotDeployed");
+        var type = (await badges.TypesAsync(contract, ct)).FirstOrDefault(t => t.Id == typeId) ?? throw new FundingException("UnknownBadgeType");
+
+        var web3 = new Web3(new Account(settings.FunderPrivateKey, chainOptions.Value.ChainId), chainOptions.Value.RpcUrls[0]);
+        string txHash;
+        await Gate.WaitAsync(ct);
+        try
+        {
+            var receipt = await web3.Eth.GetContractTransactionHandler<MintBadgeFunction>()
+                .SendRequestAndWaitForReceiptAsync(contract, new MintBadgeFunction { To = EthAddress.ToChecksum(address), TypeId = typeId }, ct);
+            if (receipt.Status?.Value != 1) throw new FundingException("TransactionReverted");
+            txHash = receipt.TransactionHash;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+
+        var funding = new AdminFunding
+        {
+            Address = EthAddress.Normalize(address),
+            Asset = FundingAsset.Badge,
+            Amount = BigInteger.One,
+            TxHash = txHash,
+            Admin = EthAddress.Normalize(admin),
+            CreatedAt = time.GetUtcNow(),
+        };
+        db.AdminFundings.Add(funding);
+        admins.Audit(admin, "MintBadge", funding.Address, $"{type.Name} (#{type.Id}) · {txHash}");
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        logger.LogInformation("Admin {Admin} minted a {Type} badge to {Address}: {TxHash}", funding.Admin, type.Name, funding.Address, txHash);
+        return funding;
     }
 
     /// <param name="amount">In whole units (ETH or CHAT), e.g. 0.5.</param>
@@ -75,6 +167,7 @@ public sealed class AdminFundingService(
         var settings = options.Value;
         if (!Enabled) throw new FundingException("FundingDisabled");
         if (!EthAddress.IsValid(address)) throw new FundingException("InvalidAddress");
+        if (asset == FundingAsset.Badge) throw new FundingException("UnknownAsset"); // badges are minted with MintBadgeAsync
         var limit = asset == FundingAsset.Eth ? settings.MaxFundEth : settings.MaxFundChat;
         if (amount <= 0 || amount > limit) throw new FundingException("AmountOutOfRange");
 

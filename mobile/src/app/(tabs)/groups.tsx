@@ -2,12 +2,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Dialog, HelperText, Portal, Text, TextInput, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Button, Chip, Dialog, HelperText, Portal, Text, TextInput, useTheme } from 'react-native-paper';
 
 import { conversationsQueryKey, useConversations } from '@/api/conversations';
 import { describeError } from '@/api/errors';
 import { createGroup, groupQueryKey, parseInviteCode } from '@/api/groups';
+import { useBadgeTypes, useOwnedBadges } from '@/chain/classBadge';
 import { ConversationRow } from '@/chat/ui/ConversationRow';
+import { useWalletStore } from '@/wallet/walletStore';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorScreen } from '@/components/StatusScreens';
 
@@ -23,10 +25,17 @@ export default function GroupsScreen() {
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // NFT gating: the badge types (read from the chain) members must hold; the creator needs them too.
+  const me = useWalletStore((state) => state.address);
+  const badgeTypes = useBadgeTypes();
+  const ownedBadges = useOwnedBadges(me);
+  const heldTypes = new Set(ownedBadges.data?.map((b) => b.type.id));
+  const [requiredBadges, setRequiredBadges] = useState<number[]>([]);
 
   const open = (kind: 'create' | 'join') => {
     setInput('');
     setError(null);
+    setRequiredBadges([]);
     setDialog(kind);
   };
 
@@ -35,7 +44,7 @@ export default function GroupsScreen() {
     if (!name) return setError('Give the group a name.');
     setBusy(true);
     try {
-      const group = await createGroup(name);
+      const group = await createGroup(name, requiredBadges);
       queryClient.setQueryData(groupQueryKey(group.conversationId), group);
       await queryClient.invalidateQueries({ queryKey: conversationsQueryKey });
       setDialog(null);
@@ -97,6 +106,32 @@ export default function GroupsScreen() {
               autoCorrect={false}
               onSubmitEditing={dialog === 'join' ? join : create}
             />
+            {dialog === 'create' && !!badgeTypes.data?.length && (
+              <View style={styles.badges}>
+                <Text variant="titleSmall">Required badges (optional)</Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  NFT-gated: only wallets holding every selected badge can join. You can only require badges you hold yourself.
+                </Text>
+                <View style={styles.badgeChips}>
+                  {badgeTypes.data.map((type) => {
+                    const selected = requiredBadges.includes(type.id);
+                    const held = heldTypes.has(type.id);
+                    return (
+                      <Chip
+                        key={type.id}
+                        compact
+                        mode={selected ? 'flat' : 'outlined'}
+                        selected={selected}
+                        disabled={busy || !held}
+                        icon={held ? 'certificate-outline' : 'lock-outline'}
+                        onPress={() => setRequiredBadges((current) => (selected ? current.filter((id) => id !== type.id) : [...current, type.id]))}>
+                        {type.name}
+                      </Chip>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
             <HelperText type="error" visible={!!error}>
               {error}
             </HelperText>
@@ -121,4 +156,6 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 10, padding: 16 },
   flex: { flex: 1 },
   hint: { marginBottom: 12 },
+  badges: { gap: 6, marginTop: 14 },
+  badgeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
 });

@@ -93,6 +93,28 @@ export function GroupDetailPage() {
                 </dd>
               </div>
               <div className="grid grid-cols-3 gap-3 px-5 py-3">
+                <dt className="text-slate-500">Access</dt>
+                <dd className="col-span-2 min-w-0 space-y-1">
+                  {data.requiredBadgeContract ? (
+                    <>
+                      <div className="flex flex-wrap gap-1.5">
+                        {data.requiredBadges.map((badge) => (
+                          <Badge key={badge.id} tone="indigo">
+                            {badge.name}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        NFT-gated: members must hold {data.requiredBadges.length > 1 ? 'all of these badges' : 'this badge'} (ERC-721). A member who transfers a required
+                        badge away is removed automatically. Contract: <Mono value={data.requiredBadgeContract} head={8} tail={6} />
+                      </p>
+                    </>
+                  ) : (
+                    <Badge>Invite link</Badge>
+                  )}
+                </dd>
+              </div>
+              <div className="grid grid-cols-3 gap-3 px-5 py-3">
                 <dt className="text-slate-500">Messages</dt>
                 <dd className="col-span-2">
                   <Link to={`/messages?conversationId=${data.id}`} className="font-medium text-indigo-600 hover:text-indigo-500">

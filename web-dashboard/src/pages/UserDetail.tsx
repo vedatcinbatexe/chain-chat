@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Ban, Coins, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Award, Ban, Coins, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { FundDialog } from '@/components/FundDialog';
+import { MintBadgeDialog } from './Badges';
 import { Badge, Button, Card, Field, Input, Modal, Mono, Notice, PageHeader, Stat, toast, toastError } from '@/components/ui';
 import { api, del, post } from '@/lib/api';
 import { formatAmount, formatDate, formatNumber } from '@/lib/format';
@@ -14,6 +15,7 @@ export function UserDetailPage() {
   const queryClient = useQueryClient();
   const [funding, setFunding] = useState(false);
   const [banning, setBanning] = useState(false);
+  const [mintingBadge, setMintingBadge] = useState(false);
   const [reason, setReason] = useState('');
 
   const user = useQuery({ queryKey: ['user', address], queryFn: () => api<UserDetail>(`/users/${address}`), refetchInterval: 10_000 });
@@ -53,6 +55,9 @@ export function UserDetailPage() {
               <Button variant="primary" onClick={() => setFunding(true)}>
                 <Coins className="size-4" /> Add balance
               </Button>
+              <Button onClick={() => setMintingBadge(true)} title="Mints one badge (ERC-721) to this wallet">
+                <Award className="size-4" /> Mint badge
+              </Button>
               {data.ban ? (
                 <Button loading={unban.isPending} onClick={() => unban.mutate()}>
                   Lift ban
@@ -87,9 +92,10 @@ export function UserDetailPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
             <Stat label="ETH balance" value={data.balances ? formatAmount(data.balances.eth) : '—'} hint="Read from the chain, for gas" />
             <Stat label="CHAT balance" value={data.balances ? formatAmount(data.balances.chat, 2) : '—'} hint="ERC-20 balanceOf" />
+            <Stat label="Badges" value={data.balances?.badges ?? '—'} hint={data.badges.length ? data.badges.map((b) => (b.count > 1 ? `${b.name} ×${b.count}` : b.name)).join(', ') : 'ERC-721, for gated groups'} />
             <Stat label="Messages sent" value={formatNumber(data.messages)} hint={`${data.conversations} conversations`} />
             <Stat label="Payments" value={formatNumber(data.paymentsSent + data.paymentsReceived)} hint={`${data.paymentsSent} sent · ${data.paymentsReceived} received`} />
           </div>
@@ -133,6 +139,7 @@ export function UserDetailPage() {
       )}
 
       <FundDialog open={funding} onClose={() => setFunding(false)} address={address} />
+      <MintBadgeDialog open={mintingBadge} onClose={() => setMintingBadge(false)} address={address} />
       <Modal
         open={banning}
         title="Ban this user?"

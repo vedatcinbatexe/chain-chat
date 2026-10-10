@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { useSession } from './lib/session';
 import { AdminsPage } from './pages/Admins';
 import { AuditPage } from './pages/Audit';
+import { BadgesPage } from './pages/Badges';
 import { GroupDetailPage } from './pages/GroupDetail';
 import { GroupsPage } from './pages/Groups';
 import { LoginPage } from './pages/Login';
@@ -27,6 +28,7 @@ export function App() {
         <Route path="users/:address" element={<UserDetailPage />} />
         <Route path="groups" element={<GroupsPage />} />
         <Route path="groups/:id" element={<GroupDetailPage />} />
+        <Route path="badges" element={<BadgesPage />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="admins" element={<AdminsPage />} />

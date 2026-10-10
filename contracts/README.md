@@ -6,10 +6,12 @@ Foundry project with the four ChainChat contracts (SDD §5.2). Dependencies are 
 |---|---|---|
 | [`Registry`](src/Registry.sol) | Custom | username ↔ address ↔ X25519 encryption key; unique lowercase usernames; key rotation |
 | [`ChatToken`](src/ChatToken.sol) | ERC-20 (CHAT) | Test currency for in-chat payments; faucet: 100 CHAT per address per day |
-| [`ClassBadge`](src/ClassBadge.sol) | ERC-721 (CCB) | Badge that gates group chats; admin-minted, transferable (transfer = revoke access) |
+| [`ClassBadge`](src/ClassBadge.sol) | ERC-721 (CCB) | Badges with types ("Student", "Instructor", …) that gate group chats: a group lists the types a wallet must hold (`holdsAll`). Admin creates types and mints; transferable (transfer = revoke access) |
 | [`Anchor`](src/Anchor.sol) | Custom | Append-only Merkle roots of message batches; `verifyMessage` checks a proof on-chain |
 
-Admin functions (`ChatToken.mint`, `ClassBadge.mint`, `Anchor.anchorRoot`) are `onlyOwner`; the owner is the deployer.
+Admin functions (`ChatToken.mint`, `ClassBadge.createBadgeType`, `ClassBadge.mint`, `Anchor.anchorRoot`) are `onlyOwner`; the owner is the deployer.
+
+The deploy script creates three badge types (Student, Assistant, Instructor). If it finds an existing deployment whose ClassBadge has no badge types, it replaces only that contract and keeps the others.
 
 ## Commands
 

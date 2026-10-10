@@ -10,6 +10,8 @@ const ACTIONS: Record<string, string> = {
   BanUser: 'Banned a user',
   UnbanUser: 'Lifted a ban',
   FundAccount: 'Added balance',
+  MintBadge: 'Minted a badge',
+  CreateBadgeType: 'Created a badge type',
   RemoveGroupMember: 'Removed a group member',
   RotateGroupInvite: 'Replaced an invite link',
   AddAdmin: 'Added an admin',

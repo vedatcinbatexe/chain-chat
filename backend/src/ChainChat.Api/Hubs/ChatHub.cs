@@ -142,6 +142,12 @@ public sealed class HubPaymentNotifier(IHubContext<ChatHub, IChatClient> hub) : 
         hub.Clients.Users(payment.From, payment.To).PaymentUpdated(new PaymentUpdateDto(payment.MessageId!.Value, conversationId, PaymentDto.From(payment)));
 }
 
+public sealed class HubGroupNotifier(IHubContext<ChatHub, IChatClient> hub) : ChainChat.Infrastructure.Indexing.IGroupNotifier
+{
+    public Task MembersChangedAsync(string conversationId, IReadOnlyCollection<string> addresses, string reason, CancellationToken ct) =>
+        hub.Clients.Users(addresses.ToList()).ConversationUpdated(new ConversationUpdatedDto(conversationId, reason));
+}
+
 /// <summary>Uses the lowercase wallet address (the JWT subject) as the SignalR user id.</summary>
 public sealed class WalletUserIdProvider : IUserIdProvider
 {

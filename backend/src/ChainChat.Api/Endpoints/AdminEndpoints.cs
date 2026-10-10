@@ -34,6 +34,10 @@ public static class AdminEndpoints
 
     public sealed record AddAdminRequest(string Address, string? Note);
 
+    public sealed record MintBadgeRequest(int TypeId);
+
+    public sealed record CreateBadgeTypeRequest(string Name);
+
     private const string InviteAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
     public static void MapAdminEndpoints(this WebApplication app)
@@ -50,6 +54,10 @@ public static class AdminEndpoints
         admin.MapGet("/users/{address}", GetUser);
         admin.MapPost("/users/{address}/ban", BanUser);
         admin.MapDelete("/users/{address}/ban", UnbanUser);
+        admin.MapPost("/users/{address}/badge", MintBadge);
+
+        admin.MapGet("/badges", ListBadgeTypes);
+        admin.MapPost("/badges", CreateBadgeType);
 
         admin.MapGet("/groups", ListGroups);
         admin.MapGet("/groups/{id}", GetGroup);
@@ -201,7 +209,7 @@ public static class AdminEndpoints
         }).ToList(), total, p, size));
     }
 
-    private static async Task<IResult> GetUser(string address, ChainChatDbContext db, PresenceTracker presence, AdminService admins, AdminFundingService funding, CancellationToken ct)
+    private static async Task<IResult> GetUser(string address, ChainChatDbContext db, PresenceTracker presence, AdminService admins, AdminFundingService funding, BadgeService badgeService, CancellationToken ct)
     {
         if (!EthAddress.IsValid(address)) return Problem(400, "InvalidAddress");
         var normalized = EthAddress.Normalize(address);
@@ -214,9 +222,18 @@ public static class AdminEndpoints
             .ToListAsync(ct);
 
         AccountBalances? balances = null;
+        var badges = new List<object>();
         try
         {
             balances = await funding.GetBalancesAsync(normalized, ct);
+            if (badgeService.ContractAddress is { } badgeContract)
+            {
+                foreach (var type in await badgeService.TypesAsync(badgeContract, ct))
+                {
+                    var count = await badgeService.BalanceOfTypeAsync(badgeContract, normalized, type.Id, ct);
+                    if (count > 0) badges.Add(new { id = type.Id, name = type.Name, count });
+                }
+            }
         }
         catch (InvalidOperationException)
         {
@@ -235,7 +252,8 @@ public static class AdminEndpoints
             online = presence.IsOnline(normalized),
             isAdmin = await admins.IsAdminAsync(normalized, ct),
             ban = ban is null ? null : new { reason = ban.Reason, bannedBy = EthAddress.ToChecksum(ban.BannedBy), bannedAt = ban.CreatedAt },
-            balances = balances is null ? null : new { eth = balances.Eth.ToString(CultureInfo.InvariantCulture), chat = balances.Chat?.ToString(CultureInfo.InvariantCulture) },
+            balances = balances is null ? null : new { eth = balances.Eth.ToString(CultureInfo.InvariantCulture), chat = balances.Chat?.ToString(CultureInfo.InvariantCulture), badges = (int?)balances.Badges },
+            badges,
             messages = await db.Messages.CountAsync(m => m.Sender == normalized, ct),
             conversations = await db.Participants.CountAsync(m => m.Address == normalized && m.RemovedAt == null, ct),
             paymentsSent = await db.Payments.CountAsync(x => x.From == normalized && x.Status == PaymentStatus.Confirmed, ct),
@@ -273,6 +291,45 @@ public static class AdminEndpoints
         return Results.NoContent();
     }
 
+    private static async Task<IResult> MintBadge(string address, MintBadgeRequest request, HttpContext context, AdminFundingService funding, CancellationToken ct)
+    {
+        try
+        {
+            return Results.Ok(PresentFunding(await funding.MintBadgeAsync(context.User.WalletAddress(), address, request.TypeId, ct), null));
+        }
+        catch (FundingException ex)
+        {
+            return Problem(ex.Code == "FundingDisabled" ? 503 : 400, ex.Code);
+        }
+    }
+
+    // ---- Badge types ----
+
+    private static async Task<IResult> ListBadgeTypes(BadgeService badges, ChainChatDbContext db, CancellationToken ct)
+    {
+        if (badges.ContractAddress is not { } contract) return Results.Ok(new { contract = (string?)null, types = Array.Empty<object>() });
+        var required = await db.Groups.AsNoTracking().Where(g => g.RequiredBadgeContract == contract).Select(g => g.RequiredBadgeTypes).ToListAsync(ct);
+        var types = await badges.TypesAsync(contract, ct);
+        return Results.Ok(new
+        {
+            contract = EthAddress.ToChecksum(contract),
+            types = types.Select(t => new { id = t.Id, name = t.Name, groups = required.Count(r => r.Contains(t.Id)) }),
+        });
+    }
+
+    private static async Task<IResult> CreateBadgeType(CreateBadgeTypeRequest request, HttpContext context, AdminFundingService funding, CancellationToken ct)
+    {
+        try
+        {
+            var created = await funding.CreateBadgeTypeAsync(context.User.WalletAddress(), request.Name ?? "", ct);
+            return Results.Ok(new { id = created.Id, name = created.Name });
+        }
+        catch (FundingException ex)
+        {
+            return Problem(ex.Code == "FundingDisabled" ? 503 : 400, ex.Code);
+        }
+    }
+
     // ---- Groups ----
 
     private static async Task<IResult> ListGroups(string? q, int? page, int? pageSize, ChainChatDbContext db, CancellationToken ct)
@@ -295,6 +352,8 @@ public static class AdminEndpoints
                 CreatorUsername = db.Users.Where(u => u.Address == g.CreatedBy).Select(u => u.Username).FirstOrDefault(),
                 g.CreatedAt,
                 g.MaxMembers,
+                g.RequiredBadgeContract,
+                g.RequiredBadgeTypes,
                 Members = db.Participants.Count(m => m.ConversationId == g.ConversationId && m.RemovedAt == null),
                 Messages = db.Messages.Count(m => m.ConversationId == g.ConversationId),
             })
@@ -308,6 +367,8 @@ public static class AdminEndpoints
             creatorUsername = g.CreatorUsername,
             createdAt = g.CreatedAt,
             maxMembers = g.MaxMembers,
+            requiresBadge = g.RequiredBadgeContract != null,
+            requiredBadgeTypes = g.RequiredBadgeTypes,
             members = g.Members,
             messages = g.Messages,
         }).ToList(), total, p, size));
@@ -328,6 +389,8 @@ public static class AdminEndpoints
             createdAt = group.CreatedAt,
             maxMembers = group.MaxMembers,
             inviteCode = group.InviteCode,
+            requiredBadgeContract = group.RequiredBadgeContract is null ? null : EthAddress.ToChecksum(group.RequiredBadgeContract),
+            requiredBadges = (await groups.RequiredBadgesAsync(group, null, ct)).Select(b => new { id = b.Id, name = b.Name }),
             messages = await db.Messages.CountAsync(m => m.ConversationId == groupId, ct),
             members = members.Select(m => new { address = EthAddress.ToChecksum(m.Address), username = m.Username, joinedAt = m.JoinedAt, online = presence.IsOnline(m.Address) }),
         });

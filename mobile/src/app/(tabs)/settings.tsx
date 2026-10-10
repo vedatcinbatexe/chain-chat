@@ -1,11 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Chip, Divider, Text, useTheme } from 'react-native-paper';
+import { Button, Chip, Dialog, Divider, HelperText, Portal, Text, TextInput, useTheme } from 'react-native-paper';
+import { isAddress } from 'viem';
 
 import { useSystemInfo } from '@/api/system';
 import { claimFaucet } from '@/chain/chatToken';
+import { transferBadge, useOwnedBadges } from '@/chain/classBadge';
 import { useChatConnectionStore } from '@/chat/connection';
+import { BadgesSheet } from '@/components/BadgesSheet';
 import { InfoRow } from '@/components/InfoRow';
 import { ProfileHeader } from '@/components/ProfileHeader';
 import { SectionCard } from '@/components/SectionCard';
@@ -34,6 +37,32 @@ export default function SettingsScreen() {
   const system = useSystemInfo();
   const [refreshing, setRefreshing] = useState(false);
   const [faucet, setFaucet] = useState<{ busy: boolean; message: string | null }>({ busy: false, message: null });
+  const ownedBadges = useOwnedBadges(address);
+  const [badgeToken, setBadgeToken] = useState<bigint | null>(null);
+  const [showBadges, setShowBadges] = useState(false);
+  const [badgeDialog, setBadgeDialog] = useState(false);
+  const [badgeTo, setBadgeTo] = useState('');
+  const [badge, setBadge] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
+
+  const onTransferBadge = async () => {
+    const to = badgeTo.trim();
+    const tokenId = badgeToken ?? ownedBadges.data?.[0]?.tokenId;
+    if (tokenId === undefined) return setBadge({ busy: false, error: 'Choose a badge to transfer.' });
+    if (!isAddress(to)) return setBadge({ busy: false, error: 'Enter a full wallet address (0x…).' });
+    setBadge({ busy: true, error: null });
+    try {
+      await transferBadge(system.data!, to, tokenId);
+      await queryClient.invalidateQueries({ queryKey: ['balances'] });
+      await queryClient.invalidateQueries({ queryKey: ['badge'] });
+      setBadgeDialog(false);
+      setBadgeTo('');
+      setBadgeToken(null);
+      setBadge({ busy: false, error: null });
+    } catch (error) {
+      console.warn('Badge transfer failed', error);
+      setBadge({ busy: false, error: 'The transfer failed. Check the address and that you have ETH for gas.' });
+    }
+  };
 
   const onFaucet = async () => {
     setFaucet({ busy: true, message: null });
@@ -101,6 +130,28 @@ export default function SettingsScreen() {
           <Button mode="contained-tonal" icon="water" onPress={onFaucet} loading={faucet.busy} disabled={faucet.busy}>
             Get 100 test CHAT
           </Button>
+        )}
+        {system.data?.contracts.ClassBadge && (
+          <Button mode="outlined" icon="certificate-outline" onPress={() => setShowBadges(true)}>
+            View badges
+          </Button>
+        )}
+        {!!ownedBadges.data?.length && (
+          <View style={styles.contracts}>
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+              My badges (ERC-721) — they unlock badge-gated groups
+            </Text>
+            <View style={styles.chipWrap}>
+              {ownedBadges.data.map((owned) => (
+                <Chip key={owned.tokenId.toString()} compact icon="certificate-outline">
+                  {owned.type.name} #{owned.tokenId.toString()}
+                </Chip>
+              ))}
+            </View>
+            <Button mode="outlined" icon="send-outline" onPress={() => setBadgeDialog(true)}>
+              Transfer a badge
+            </Button>
+          </View>
         )}
         {faucet.message && (
           <Text variant="bodySmall" style={[styles.centered, { color: theme.colors.onSurfaceVariant }]}>
@@ -172,6 +223,52 @@ export default function SettingsScreen() {
         </Button>
       </SectionCard>
 
+      <BadgesSheet address={address} title="My badges" visible={showBadges} onDismiss={() => setShowBadges(false)} />
+      <Portal>
+        <Dialog visible={badgeDialog} onDismiss={() => !badge.busy && setBadgeDialog(false)}>
+          <Dialog.Title>Transfer a badge</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+              Sends the badge (ERC-721) to another wallet. You are removed from every group that requires a badge you no longer hold, and can no longer read new messages there.
+            </Text>
+            <View style={[styles.chipWrap, styles.dialogInput]}>
+              {ownedBadges.data?.map((owned, index) => {
+                const selected = badgeToken === null ? index === 0 : badgeToken === owned.tokenId;
+                return (
+                  <Chip key={owned.tokenId.toString()} compact selected={selected} mode={selected ? 'flat' : 'outlined'} onPress={() => setBadgeToken(owned.tokenId)} disabled={badge.busy}>
+                    {owned.type.name} #{owned.tokenId.toString()}
+                  </Chip>
+                );
+              })}
+            </View>
+            <TextInput
+              mode="outlined"
+              label="Recipient address"
+              placeholder="0x…"
+              value={badgeTo}
+              onChangeText={(value) => {
+                setBadgeTo(value);
+                setBadge({ busy: false, error: null });
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.dialogInput}
+            />
+            <HelperText type="error" visible={!!badge.error}>
+              {badge.error}
+            </HelperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setBadgeDialog(false)} disabled={badge.busy}>
+              Cancel
+            </Button>
+            <Button mode="contained" onPress={onTransferBadge} loading={badge.busy} disabled={badge.busy}>
+              Transfer
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
       <Text variant="labelSmall" style={[styles.centered, styles.footer, { color: theme.colors.outline }]}>
         ChainChat · BLM3730 Blockchain Basics · YTÜ
       </Text>
@@ -186,4 +283,5 @@ const styles = StyleSheet.create({
   contracts: { gap: 8 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   footer: { marginTop: 4 },
+  dialogInput: { marginTop: 12 },
 });

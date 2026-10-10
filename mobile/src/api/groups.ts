@@ -3,6 +3,13 @@ import type { Address, Hex } from 'viem';
 
 import { authedRequest } from './authed';
 
+export interface RequiredBadge {
+  id: number;
+  name: string;
+  /** Only in invite previews. */
+  held?: boolean | null;
+}
+
 export interface GroupMember {
   address: Address;
   username: string | null;
@@ -18,6 +25,10 @@ export interface GroupInfo {
   maxMembers: number;
   inviteCode: string;
   members: GroupMember[];
+  /** NFT-gated group: the ERC-721 contract whose badges members must hold (SDD §6.5). */
+  requiredBadgeContract: Address | null;
+  /** The badge types every member must hold; empty for an open group. */
+  requiredBadges: RequiredBadge[];
 }
 
 /** What an invite link leads to, before joining. */
@@ -28,11 +39,16 @@ export interface InvitePreview {
   maxMembers: number;
   createdByUsername: string | null;
   alreadyMember: boolean;
+  requiredBadgeContract: Address | null;
+  /** For gated groups: each required badge type, with the server's reading of whether this wallet holds it. */
+  requiredBadges: RequiredBadge[];
 }
 
 export const groupQueryKey = (id: string) => ['group', id.toLowerCase()] as const;
 
-export const createGroup = (name: string) => authedRequest<GroupInfo>('/api/v1/groups', { method: 'POST', body: JSON.stringify({ name }) });
+/** `requiredBadgeTypes`: badge type ids every member must hold (NFT-gated group); empty for an open group. */
+export const createGroup = (name: string, requiredBadgeTypes: number[] = []) =>
+  authedRequest<GroupInfo>('/api/v1/groups', { method: 'POST', body: JSON.stringify({ name, requiredBadgeTypes }) });
 
 export const getInvitePreview = (code: string) => authedRequest<InvitePreview>(`/api/v1/groups/invites/${encodeURIComponent(code)}`);
 

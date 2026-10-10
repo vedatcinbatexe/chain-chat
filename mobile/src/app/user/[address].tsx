@@ -8,6 +8,7 @@ import type { Address } from 'viem';
 import { useSystemInfo } from '@/api/system';
 import { useUserProfile } from '@/api/users';
 import { readRegistration } from '@/chain/registry';
+import { BadgesSheet } from '@/components/BadgesSheet';
 import { InfoRow } from '@/components/InfoRow';
 import { ProfileHeader } from '@/components/ProfileHeader';
 import { SectionCard } from '@/components/SectionCard';
@@ -24,6 +25,7 @@ export default function UserProfileScreen() {
   const system = useSystemInfo();
   const profile = useUserProfile(address);
   const [refreshing, setRefreshing] = useState(false);
+  const [showBadges, setShowBadges] = useState(false);
 
   // The backend is a directory, not the authority: read the same registration from the Registry contract.
   const onChain = useQuery({
@@ -96,7 +98,13 @@ export default function UserProfileScreen() {
 
       <SectionCard title="Holdings" icon="wallet-outline" subtitle={system.data ? `${system.data.network} · chain ${system.data.chainId}` : undefined}>
         <TokenBalances address={user.address} />
+        {system.data?.contracts.ClassBadge && (
+          <Button mode="outlined" icon="certificate-outline" onPress={() => setShowBadges(true)}>
+            View badges
+          </Button>
+        )}
       </SectionCard>
+      <BadgesSheet address={user.address} title={isMe ? 'My badges' : `@${user.username}'s badges`} visible={showBadges} onDismiss={() => setShowBadges(false)} />
 
       <SectionCard title="Identity & keys" icon="key-outline">
         <InfoRow icon="wallet" label="Wallet address" value={user.address} mono copyable />

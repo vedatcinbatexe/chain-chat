@@ -29,8 +29,8 @@ const PAYMENTS: Column<PaymentRow>[] = [
 
 const FUNDINGS: Column<FundingRow>[] = [
   { header: 'Account', cell: (f) => <UserCell address={f.address} username={f.username} /> },
-  { header: 'Amount', align: 'right', cell: (f) => `${formatAmount(f.amount)} ${f.asset}` },
-  { header: 'Kind', cell: (f) => <Badge tone="indigo">{f.asset === 'CHAT' ? 'Mint' : 'Transfer'}</Badge> },
+  { header: 'Amount', align: 'right', cell: (f) => (f.asset === 'BADGE' ? '1 badge' : `${formatAmount(f.amount)} ${f.asset}`) },
+  { header: 'Kind', cell: (f) => <Badge tone="indigo">{f.asset === 'ETH' ? 'Transfer' : f.asset === 'BADGE' ? 'Mint (ERC-721)' : 'Mint (ERC-20)'}</Badge> },
   { header: 'By admin', cell: (f) => <Mono value={f.admin} /> },
   { header: 'Transaction', cell: (f) => <Mono value={f.txHash} head={10} tail={6} /> },
   { header: 'Time', cell: (f) => <span className="whitespace-nowrap">{formatDate(f.createdAt)}</span> },

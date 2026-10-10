@@ -50,12 +50,21 @@ export interface UserDetail {
   online: boolean;
   isAdmin: boolean;
   ban: { reason: string | null; bannedBy: string; bannedAt: string } | null;
-  balances: { eth: string; chat: string | null } | null;
+  balances: { eth: string; chat: string | null; badges: number | null } | null;
   messages: number;
   conversations: number;
   paymentsSent: number;
   paymentsReceived: number;
+  /** Badges the wallet holds, by type (read from the chain). */
+  badges: { id: number; name: string; count: number }[];
   groups: { id: string; name: string; joinedAt: string }[];
+}
+
+export interface BadgeTypes {
+  /** The ClassBadge contract, or null when it is not deployed. */
+  contract: string | null;
+  /** `groups`: how many groups require this badge. */
+  types: { id: number; name: string; groups: number }[];
 }
 
 export interface GroupRow {
@@ -65,6 +74,8 @@ export interface GroupRow {
   creatorUsername: string | null;
   createdAt: string;
   maxMembers: number;
+  requiresBadge: boolean;
+  requiredBadgeTypes: number[];
   members: number;
   messages: number;
 }
@@ -76,6 +87,9 @@ export interface GroupDetail {
   createdAt: string;
   maxMembers: number;
   inviteCode: string;
+  /** NFT-gated group: the ERC-721 contract whose badge members must hold. */
+  requiredBadgeContract: string | null;
+  requiredBadges: { id: number; name: string }[];
   messages: number;
   members: { address: string; username: string | null; joinedAt: string; online: boolean }[];
 }
@@ -138,7 +152,8 @@ export interface FundingRow {
   id: number;
   address: string;
   username: string | null;
-  asset: Asset;
+  /** BADGE: one ClassBadge (ERC-721) was minted; the amount is 1. */
+  asset: Asset | 'BADGE';
   amount: string;
   txHash: string;
   admin: string;

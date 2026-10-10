@@ -32,6 +32,7 @@ public static class DependencyInjection
 
         services.AddSingleton<ChainClient>();
         services.AddSingleton<ContractDeployments>();
+        services.AddSingleton<BadgeService>();
 
         services.AddOptions<GasDripOptions>()
             .Bind(configuration.GetSection(GasDripOptions.SectionName))
@@ -47,6 +48,8 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<RegistryIndexer>();
         services.AddHostedService<AnchorIndexer>();
+        services.TryAddSingleton<IGroupNotifier, NullGroupNotifier>(); // the API replaces it with SignalR
+        services.AddHostedService<BadgeIndexer>();
 
         services.AddOptions<AnchoringOptions>()
             .Bind(configuration.GetSection(AnchoringOptions.SectionName))

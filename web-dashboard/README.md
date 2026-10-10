@@ -37,8 +37,9 @@ on the Admins page; those admins can do everything except manage admins.
 | Page | What it does |
 |---|---|
 | Overview | Live counts (users, online, groups, messages, payments, anchor batches), messages per day, block height |
-| Users | Search users; open one to see on-chain identity, ETH and CHAT balances, groups; **add balance**; **ban / unban** |
-| Groups | Groups with member and message counts; **remove a member**; **replace the invite link** |
+| Users | Search users; open one to see on-chain identity, ETH, CHAT and badge balances, groups; **add balance**; **mint badge**; **ban / unban** |
+| Badges | Badge types in the ClassBadge contract; **create a badge type**; **mint a badge** to any wallet |
+| Groups | Groups with member and message counts, and which badges they require; **remove a member**; **replace the invite link** |
 | Messages | Message metadata (sender, size, hash, anchoring state) with filters |
 | Transactions | In-chat payments, admin funding, gas drips, anchor batches; **add balance** to any address |
 | Admins | Who can sign in here; root admins add and remove admins |
@@ -54,7 +55,8 @@ on the Admins page; those admins can do everything except manage admins.
   (sign-in, sending messages, joining groups).
 
 "Add balance" is a real transaction: test ETH is sent from the funder wallet, and CHAT is minted by the token's
-owner (`Admin:FunderPrivateKey`). Both are recorded under Transactions → Admin funding and in the audit log.
+owner (`Admin:FunderPrivateKey`). "Mint badge" mints one badge (ERC-721) of a chosen type with the same key, which lets
+the wallet join groups that require that badge. All of them are recorded under Transactions → Admin funding and in the audit log.
 
 ## Checks
 

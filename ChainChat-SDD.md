@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.5 (MVP)
+**Version:** 1.6 (MVP)
 
 ---
 
@@ -53,7 +53,7 @@ ChainChat applies the cryptographic and structural building blocks covered in BL
 | 3 | On-chain username & encryption key registry | Decentralized, tamper-proof directory |
 | 4 | End-to-end encrypted 1:1 chat | Encryption public keys resolved from chain |
 | 5 | Send tokens inside a chat | ERC-20 transfers |
-| 6 | Group chat with invite links, typing, presence and reactions (NFT gating optional) | Member keys resolved from chain; ERC-721 ownership checked on-chain for gated groups |
+| 6 | Group chat with invite links, typing, presence and reactions; optional NFT gating: the creator chooses the badge types members must hold | Member keys resolved from chain; ERC-721 ownership checked on-chain for gated groups |
 | 7 | Signed, hash-chained messages with on-chain anchoring & verification | Wallet signatures + Merkle roots stored on-chain |
 | 8 | Blockchain activity screen | Explorer links for every transaction |
 | 9 | Web admin dashboard (§4.4) | Wallet-based admin login; ERC-20 minting by the contract owner; shows what a server operator can and cannot do |
@@ -222,7 +222,8 @@ A web application (`web-dashboard/`: React, TypeScript, Tailwind CSS) for the pe
 **What admins can do**
 - **Users:** search, inspect on-chain identity and balances (read from the chain), ban and unban. A ban blocks sign-in, sending messages and joining groups on this server.
 - **Add balance:** send test ETH, or mint CHAT (`ChatToken.mint`, owner only), to any address. Each funding is a real transaction, recorded with the admin who made it.
-- **Groups:** inspect members, remove a member, replace the invite link.
+- **Groups:** inspect members, remove a member, replace the invite link; see which groups are badge-gated.
+- **Badges:** create badge types and mint a badge of a chosen type to a wallet (`ClassBadge.createBadgeType` / `mint`, owner only), so it can join groups that require it.
 - **Messages:** metadata only — sender, conversation, size, hash, anchoring state.
 - **Transactions:** in-chat payments, admin fundings, gas drips and anchor batches.
 - **System:** runtime settings (pause messaging, allow group creation, maximum group size, gas drip), trigger anchoring, and view chain, indexer and configuration status. Secrets are never returned.
@@ -251,7 +252,7 @@ Four small contracts, each with a single responsibility:
 |---|---|---|---|
 | **Registry** | Custom | Maps username ↔ address ↔ encryption public key; unique usernames; key rotation | `UserRegistered`, `KeyUpdated` |
 | **ChatToken** | ERC-20 | Test currency for in-chat payments; rate-limited faucet for test users | `Transfer` |
-| **ClassBadge** | ERC-721 | Membership badge for gated groups; minted by admin | `Transfer` |
+| **ClassBadge** | ERC-721 | Badges with types (e.g. Student, Instructor) for gated groups; types created and badges minted by admin | `Transfer`, `BadgeTypeCreated` |
 | **Anchor** | Custom | Stores Merkle roots of message batches with batch ranges and timestamps; append-only | `RootAnchored` |
 
 **Design rules**
@@ -349,7 +350,13 @@ The envelope bytes are what goes into the message hash, so signatures, the per-s
 
 **Live metadata.** Typing indicators, online status and emoji reactions travel over the SignalR hub. They are not encrypted, not signed and not anchored: they are convenience metadata that the server can see, and could forge. Message content and authorship never depend on them.
 
-**NFT gating (optional, planned).** A group may require a ClassBadge. The API then checks `balanceOf(user)` before adding a member, **every member's client independently checks `balanceOf` via RPC** before wrapping a key for a member (so a server that adds an unauthorized member gains nothing), and the indexer revokes membership when the badge is transferred away.
+**NFT gating (optional).** The ClassBadge contract (ERC-721) defines *badge types* — for example "Student", "Assistant", "Instructor"; the admin can add more. Every badge is an NFT of one type. When creating a group, the creator chooses the badge types it requires (up to 5). The group stores the contract address and the list of type ids, and a wallet must hold **all** of them to join and to stay a member.
+1. **Joining.** The API reads the wallet's badges from the chain (`balanceOfType`) when the group is created (the creator must hold the badges too) and on every join. If one is missing, the request is refused (`BadgeRequired`); the invite preview shows which. Ownership is never cached in the database.
+2. **Clients do not trust the member list.** Before wrapping a message key, **every member's app calls `holdsAll(member, requiredTypes)` via RPC for each member** and skips those who fail. A server that adds an unauthorized wallet to the member list therefore gains nothing: no app encrypts to it.
+3. **Revocation.** Badges are transferable on purpose. The indexer follows the badge contract's `Transfer` events; the sender is removed from every group whose required badges they no longer all hold, and the remaining members are notified. Independently of the server, the other apps stop encrypting to that wallet as soon as their own check fails.
+4. **Badge types and minting.** Only the contract owner can create a badge type (`createBadgeType`) or mint (`mint(to, typeId)`). The admin does both from the dashboard (§4.4); each is a transaction recorded in the audit log. Types cannot be renamed or deleted.
+
+The gate decides who can read *new* messages. As in any group, messages sent while a wallet was a member stay readable to it.
 
 ### 6.6 Integrity Anchoring & Verification
 ```mermaid
