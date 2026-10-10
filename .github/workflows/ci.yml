@@ -1,0 +1,134 @@
+# Checks every pull request (and main after a merge): the four parts of ChainChat depend on each other through
+# the shared test vectors and contract ABIs, so all of them are checked on every change.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch replaces the run in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Contracts (Foundry)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - name: Install dependencies
+        run: forge soldeer install
+      - name: Formatting
+        run: forge fmt --check
+      - name: Build
+        run: forge build --sizes
+      - name: Tests
+        run: forge test -vv
+      # The backend, app and dashboard use the ABI files in shared/deployments/abi; they must match the contracts.
+      - name: Committed ABIs match the contracts
+        run: |
+          for contract in Registry ChatToken ClassBadge Anchor; do
+            if ! diff <(forge inspect "$contract" abi --json | jq -S .) <(jq -S . "../shared/deployments/abi/$contract.json") > /dev/null; then
+              echo "::error file=shared/deployments/abi/$contract.json::ABI is out of date. Run contracts/deploy.sh (or forge inspect $contract abi --json) and commit the result."
+              exit 1
+            fi
+          done
+
+  test-vectors:
+    name: Shared test vectors
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shared/test-vectors/generator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: shared/test-vectors/generator/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # The vectors are the contract between TypeScript, C# and Solidity: the committed files must be what the generator produces.
+      - name: Committed vectors match the generator
+        run: |
+          npm run generate
+          git diff --exit-code -- ../vectors
+
+  backend:
+    name: Backend (.NET)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build
+        run: dotnet build ChainChat.slnx --configuration Release
+      - name: Tests
+        run: dotnet test ChainChat.slnx --configuration Release --no-build
+
+  mobile:
+    name: Mobile app (Expo)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Tests
+        run: npm test
+
+  dashboard:
+    name: Web dashboard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web-dashboard/package-lock.json
+      - run: npm ci
+      - name: Typecheck and build
+        run: npm run build
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: API image
+        run: docker build --tag chainchat-api:ci backend
+      - name: Dashboard image
+        run: docker build --tag chainchat-dashboard:ci web-dashboard
+      - name: Contracts deployer image
+        run: docker build --tag chainchat-contracts:ci contracts

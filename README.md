@@ -1,5 +1,7 @@
 # ChainChat
 
+[![CI](https://github.com/vedatcinbatexe/chain-chat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vedatcinbatexe/chain-chat/actions/workflows/ci.yml)
+
 A mobile messenger where **your wallet is your identity**. No phone numbers or passwords: users sign in with their wallet, register a username on-chain, and exchange end-to-end encrypted messages. They can also send tokens inside chats and chat in end-to-end encrypted groups that are joined through invite links and can be gated by NFT ownership. Message history is anchored on-chain with Merkle roots, so anyone can prove it hasn't been altered.
 
 > **Principle:** the blockchain holds trust, the server holds data.
@@ -126,7 +128,17 @@ dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat
 
 - Work happens on feature branches (`feature/…`, `fix/…`, `chore/…`, `docs/…`).
 - Every change goes into `main` through a pull request and is reviewed before merging.
+- Every pull request is checked by GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
+
+| Check | What it runs |
+|---|---|
+| Contracts | `forge fmt --check`, build, tests, and that the ABI files in `shared/deployments/abi` match the contracts |
+| Shared test vectors | generator typecheck and tests, and that the committed vectors are what the generator produces |
+| Backend | build and tests |
+| Mobile app | typecheck, lint, tests |
+| Web dashboard | typecheck and build |
+| Docker images | the API, dashboard and contracts-deployer images build |
 
 ## Status
 
-🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles, end-to-end encrypted 1:1 messaging, on-chain message anchoring with in-app verification, in-chat CHAT payments verified from on-chain receipts, group chat with invite links, typing indicators, online status and reactions, NFT-gated groups (the creator chooses which ERC-721 badges members must hold), web admin dashboard, on-chain activity screen, in-app notifications and admin announcements. Next: CI, testnet deployment.
+🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles, end-to-end encrypted 1:1 messaging, on-chain message anchoring with in-app verification, in-chat CHAT payments verified from on-chain receipts, group chat with invite links, typing indicators, online status and reactions, NFT-gated groups (the creator chooses which ERC-721 badges members must hold), web admin dashboard, on-chain activity screen, in-app notifications and admin announcements, CI. Next: testnet deployment.

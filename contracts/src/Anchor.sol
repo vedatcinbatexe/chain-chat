@@ -33,7 +33,11 @@ contract Anchor is Ownable {
     /// @notice Anchors the Merkle root of messages `fromMessageId`..`toMessageId` (inclusive).
     /// @dev Ranges must be strictly increasing and never overlap, so a batch can never be re-anchored or rewritten.
     /// @return batchId Index of the new batch.
-    function anchorRoot(bytes32 root, uint64 fromMessageId, uint64 toMessageId) external onlyOwner returns (uint256 batchId) {
+    function anchorRoot(bytes32 root, uint64 fromMessageId, uint64 toMessageId)
+        external
+        onlyOwner
+        returns (uint256 batchId)
+    {
         if (root == bytes32(0)) revert EmptyRoot();
         if (fromMessageId == 0 || fromMessageId > toMessageId) revert InvalidRange();
 
@@ -43,7 +47,11 @@ contract Anchor is Ownable {
         batchId = _batches.length;
         // casting to 'uint64' is safe because a uint64 of seconds lasts ~584 billion years
         // forge-lint: disable-next-line(unsafe-typecast)
-        _batches.push(Batch({root: root, fromMessageId: fromMessageId, toMessageId: toMessageId, anchoredAt: uint64(block.timestamp)}));
+        _batches.push(
+            Batch({
+                root: root, fromMessageId: fromMessageId, toMessageId: toMessageId, anchoredAt: uint64(block.timestamp)
+            })
+        );
 
         emit RootAnchored(batchId, root, fromMessageId, toMessageId);
     }
@@ -61,7 +69,11 @@ contract Anchor is Ownable {
     /// @notice Checks on-chain that a message is part of an anchored batch — anyone can call this from a block explorer.
     /// @param messageHash The message's hash (SPEC.md §3); the leaf is derived here.
     // slither-disable-next-line timestamp (false positive: compares an array length, not a time)
-    function verifyMessage(uint256 batchId, bytes32 messageHash, bytes32[] calldata proof) external view returns (bool) {
+    function verifyMessage(uint256 batchId, bytes32 messageHash, bytes32[] calldata proof)
+        external
+        view
+        returns (bool)
+    {
         if (batchId >= _batches.length) revert UnknownBatch(batchId);
         return MerkleProof.verifyCalldata(proof, _batches[batchId].root, leafHash(messageHash));
     }
