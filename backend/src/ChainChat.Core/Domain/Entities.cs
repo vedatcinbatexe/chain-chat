@@ -241,3 +241,15 @@ public class SystemSetting
     public required string UpdatedBy { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
+
+/// <summary>A message an admin sent to all users from the dashboard; shown as a notification in connected apps.</summary>
+public class Announcement
+{
+    public long Id { get; set; }
+    public required string Title { get; set; }
+    public required string Body { get; set; }
+    public required string Admin { get; set; }
+    /// <summary>How many wallets were connected when it was sent.</summary>
+    public int OnlineRecipients { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}

@@ -27,6 +27,13 @@ public sealed class BalanceOfTypeFunction : FunctionMessage
     public BigInteger TypeId { get; set; }
 }
 
+[Function("typeOf", "uint256")]
+public sealed class TypeOfFunction : FunctionMessage
+{
+    [Parameter("uint256", "tokenId", 1)]
+    public BigInteger TokenId { get; set; }
+}
+
 /// <summary>A kind of badge defined in the ClassBadge contract, e.g. 1 = "Student".</summary>
 public sealed record BadgeType(int Id, string Name);
 
@@ -61,6 +68,14 @@ public sealed class BadgeService(ChainClient chain, ContractDeployments deployme
             types.Add(new BadgeType(id, name));
         }
         return types;
+    }
+
+    /// <summary>The badge type name of one minted badge, e.g. "Student".</summary>
+    public async Task<string> TypeNameOfTokenAsync(string contract, BigInteger tokenId, CancellationToken ct)
+    {
+        var typeId = (int)await chain.ExecuteAsync(web3 =>
+            web3.Eth.GetContractQueryHandler<TypeOfFunction>().QueryAsync<BigInteger>(contract, new TypeOfFunction { TokenId = tokenId }), ct);
+        return (await TypesAsync(contract, ct)).FirstOrDefault(t => t.Id == typeId)?.Name ?? $"#{typeId}";
     }
 
     /// <summary>Total number of badges (of any type) the address holds.</summary>

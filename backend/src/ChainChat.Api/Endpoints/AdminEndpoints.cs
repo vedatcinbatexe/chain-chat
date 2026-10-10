@@ -11,6 +11,7 @@ using ChainChat.Infrastructure.Anchoring;
 using ChainChat.Infrastructure.Chain;
 using ChainChat.Infrastructure.Indexing;
 using ChainChat.Infrastructure.Messaging;
+using ChainChat.Infrastructure.Notifications;
 using ChainChat.Infrastructure.Payments;
 using ChainChat.Infrastructure.Persistence;
 using Microsoft.AspNetCore.SignalR;
@@ -37,6 +38,8 @@ public static class AdminEndpoints
     public sealed record MintBadgeRequest(int TypeId);
 
     public sealed record CreateBadgeTypeRequest(string Name);
+
+    public sealed record AnnouncementRequest(string Title, string Body);
 
     private const string InviteAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -76,6 +79,9 @@ public static class AdminEndpoints
         admin.MapPost("/admins", AddAdmin);
         admin.MapDelete("/admins/{address}", RemoveAdmin);
         admin.MapGet("/audit", ListAudit);
+
+        admin.MapGet("/announcements", ListAnnouncements);
+        admin.MapPost("/announcements", SendAnnouncement);
 
         admin.MapGet("/system", GetSystem);
         admin.MapPut("/system/settings", UpdateSettings);
@@ -262,7 +268,7 @@ public static class AdminEndpoints
         });
     }
 
-    private static async Task<IResult> BanUser(string address, BanRequest request, HttpContext context, ChainChatDbContext db, AdminService admins, TimeProvider time, CancellationToken ct)
+    private static async Task<IResult> BanUser(string address, BanRequest request, HttpContext context, ChainChatDbContext db, AdminService admins, IUserNotifier notifier, TimeProvider time, CancellationToken ct)
     {
         if (!EthAddress.IsValid(address)) return Problem(400, "InvalidAddress");
         var normalized = EthAddress.Normalize(address);
@@ -275,10 +281,11 @@ public static class AdminEndpoints
         db.BannedUsers.Add(new BannedUser { Address = normalized, Reason = reason, BannedBy = EthAddress.Normalize(me), CreatedAt = time.GetUtcNow() });
         admins.Audit(me, "BanUser", normalized, reason);
         await db.SaveChangesAsync(ct);
+        await notifier.NotifyAsync(normalized, new UserNotification("AccountBlocked", "Account blocked", "An administrator blocked this account on this server."), ct);
         return Results.NoContent();
     }
 
-    private static async Task<IResult> UnbanUser(string address, HttpContext context, ChainChatDbContext db, AdminService admins, CancellationToken ct)
+    private static async Task<IResult> UnbanUser(string address, HttpContext context, ChainChatDbContext db, AdminService admins, IUserNotifier notifier, CancellationToken ct)
     {
         if (!EthAddress.IsValid(address)) return Problem(400, "InvalidAddress");
         var normalized = EthAddress.Normalize(address);
@@ -288,6 +295,7 @@ public static class AdminEndpoints
         db.BannedUsers.Remove(ban);
         admins.Audit(context.User.WalletAddress(), "UnbanUser", normalized);
         await db.SaveChangesAsync(ct);
+        await notifier.NotifyAsync(normalized, new UserNotification("AccountUnblocked", "Account unblocked", "An administrator lifted the block on this account."), ct);
         return Results.NoContent();
     }
 
@@ -398,7 +406,7 @@ public static class AdminEndpoints
 
     private static async Task<IResult> RemoveMember(
         string id, string address, HttpContext context, ChainChatDbContext db, AdminService admins, GroupService groups,
-        IHubContext<ChatHub, IChatClient> hub, TimeProvider time, CancellationToken ct)
+        IHubContext<ChatHub, IChatClient> hub, IUserNotifier notifier, TimeProvider time, CancellationToken ct)
     {
         if (!EthAddress.IsValid(address)) return Problem(400, "InvalidAddress");
         var groupId = id.ToLowerInvariant();
@@ -413,6 +421,8 @@ public static class AdminEndpoints
         // The apps of the remaining members stop encrypting new messages to the removed wallet.
         var remaining = await groups.ActiveMembersAsync(groupId, ct);
         await hub.Clients.Users([.. remaining.Select(m => m.Address), normalized]).ConversationUpdated(new ConversationUpdatedDto(groupId, "MemberRemoved"));
+        var groupName = await db.Groups.AsNoTracking().Where(g => g.ConversationId == groupId).Select(g => g.Name).FirstAsync(ct);
+        await notifier.NotifyAsync(normalized, new UserNotification("RemovedFromGroup", "Removed from a group", $"An administrator removed you from \"{groupName}\".", groupId), ct);
         return Results.NoContent();
     }
 
@@ -566,12 +576,15 @@ public static class AdminEndpoints
         return Results.Ok(new Paged<object>(rows.Select(r => PresentFunding(r.Funding, r.Username)).ToList(), total, p, size));
     }
 
-    private static async Task<IResult> Fund(FundRequest request, HttpContext context, AdminFundingService funding, CancellationToken ct)
+    private static async Task<IResult> Fund(FundRequest request, HttpContext context, AdminFundingService funding, IUserNotifier notifier, CancellationToken ct)
     {
         if (!Enum.TryParse<FundingAsset>(request.Asset, ignoreCase: true, out var asset) || !Enum.IsDefined(asset)) return Problem(400, "UnknownAsset");
         try
         {
-            return Results.Ok(PresentFunding(await funding.FundAsync(context.User.WalletAddress(), request.Address, asset, request.Amount, ct), null));
+            var sent = await funding.FundAsync(context.User.WalletAddress(), request.Address, asset, request.Amount, ct);
+            var amount = request.Amount.ToString("0.####", CultureInfo.InvariantCulture);
+            await notifier.NotifyAsync(sent.Address, new UserNotification("FundsReceived", $"{amount} {asset.ToString().ToUpperInvariant()} received", $"An administrator sent you {amount} {asset.ToString().ToUpperInvariant()}."), ct);
+            return Results.Ok(PresentFunding(sent, null));
         }
         catch (FundingException ex)
         {
@@ -664,6 +677,43 @@ public static class AdminEndpoints
             details = r.Entry.Details,
             createdAt = r.Entry.CreatedAt,
         }).ToList(), total, p, size));
+    }
+
+    // ---- Announcements ----
+
+    private static async Task<IResult> ListAnnouncements(int? page, int? pageSize, ChainChatDbContext db, CancellationToken ct)
+    {
+        var (p, size) = Paging(page, pageSize);
+        var total = await db.Announcements.CountAsync(ct);
+        var rows = await db.Announcements.AsNoTracking().OrderByDescending(a => a.Id).Skip((p - 1) * size).Take(size).ToListAsync(ct);
+        return Results.Ok(new Paged<object>(rows.Select(a => (object)new
+        {
+            id = a.Id,
+            title = a.Title,
+            body = a.Body,
+            admin = EthAddress.ToChecksum(a.Admin),
+            onlineRecipients = a.OnlineRecipients,
+            createdAt = a.CreatedAt,
+        }).ToList(), total, p, size));
+    }
+
+    private static async Task<IResult> SendAnnouncement(
+        AnnouncementRequest request, HttpContext context, ChainChatDbContext db, AdminService admins, IUserNotifier notifier, PresenceTracker presence, TimeProvider time, CancellationToken ct)
+    {
+        var title = (request.Title ?? "").Trim();
+        var body = (request.Body ?? "").Trim();
+        if (title.Length is 0 or > 80) return Problem(400, "InvalidTitle");
+        if (body.Length is 0 or > 500) return Problem(400, "InvalidBody");
+
+        var me = context.User.WalletAddress();
+        var announcement = new Announcement { Title = title, Body = body, Admin = EthAddress.Normalize(me), OnlineRecipients = presence.OnlineCount, CreatedAt = time.GetUtcNow() };
+        db.Announcements.Add(announcement);
+        admins.Audit(me, "SendAnnouncement", null, title);
+        await db.SaveChangesAsync(ct);
+
+        // Only connected apps receive it: announcements are not queued for users who are offline.
+        await notifier.BroadcastAsync(new UserNotification("Announcement", title, body), ct);
+        return Results.Ok(new { id = announcement.Id, onlineRecipients = announcement.OnlineRecipients });
     }
 
     // ---- System ----

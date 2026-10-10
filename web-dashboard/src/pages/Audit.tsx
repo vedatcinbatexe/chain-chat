@@ -12,6 +12,7 @@ const ACTIONS: Record<string, string> = {
   FundAccount: 'Added balance',
   MintBadge: 'Minted a badge',
   CreateBadgeType: 'Created a badge type',
+  SendAnnouncement: 'Sent an announcement',
   RemoveGroupMember: 'Removed a group member',
   RotateGroupInvite: 'Replaced an invite link',
   AddAdmin: 'Added an admin',

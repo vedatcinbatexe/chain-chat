@@ -169,6 +169,16 @@ export interface AdminRow {
   addedAt: string | null;
 }
 
+export interface AnnouncementRow {
+  id: number;
+  title: string;
+  body: string;
+  admin: string;
+  /** How many wallets were connected when it was sent. */
+  onlineRecipients: number;
+  createdAt: string;
+}
+
 export interface AuditRow {
   id: number;
   admin: string;

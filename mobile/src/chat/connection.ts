@@ -4,6 +4,7 @@ import { create } from 'zustand';
 
 import { conversationsQueryKey, messagesQueryKey, type MessageDto, type PaymentDto } from '@/api/conversations';
 import { createHubConnection } from '@/api/realtime';
+import { handleServerNotification, notifyIncomingMessage, type ServerNotification } from '@/notifications/incoming';
 import { useLiveStore } from './liveStore';
 
 export type ChatConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -25,7 +26,11 @@ export function addMessageToCache(queryClient: QueryClient, message: MessageDto)
 export async function startChatConnection(queryClient: QueryClient): Promise<void> {
   if (!connection) {
     connection = createHubConnection('/hubs/chat');
-    connection.on('MessageReceived', (message: MessageDto) => addMessageToCache(queryClient, message));
+    connection.on('MessageReceived', (message: MessageDto) => {
+      addMessageToCache(queryClient, message);
+      void notifyIncomingMessage(queryClient, message);
+    });
+    connection.on('Notification', (notification: ServerNotification) => handleServerNotification(queryClient, notification));
     connection.on('PaymentUpdated', (update: { messageId: number; conversationId: string; payment: PaymentDto }) => {
       queryClient.setQueryData<MessageDto[]>(messagesQueryKey(update.conversationId), (previous) =>
         previous?.map((m) => (m.id === update.messageId ? { ...m, payment: update.payment } : m)),

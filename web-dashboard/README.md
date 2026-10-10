@@ -42,6 +42,7 @@ on the Admins page; those admins can do everything except manage admins.
 | Groups | Groups with member and message counts, and which badges they require; **remove a member**; **replace the invite link** |
 | Messages | Message metadata (sender, size, hash, anchoring state) with filters |
 | Transactions | In-chat payments, admin funding, gas drips, anchor batches; **add balance** to any address |
+| Announcements | **Send a notification** to every user who has the app open; history of sent announcements |
 | Admins | Who can sign in here; root admins add and remove admins |
 | Audit log | Every change made from the dashboard, with the admin who made it |
 | System | **Runtime settings** (pause messaging, group creation, group size, gas drip), **anchor now**, chain and indexer status, contracts, funder wallet, read-only server configuration |

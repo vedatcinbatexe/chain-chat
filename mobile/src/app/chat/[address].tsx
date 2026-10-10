@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Icon, ProgressBar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +26,7 @@ import { DismissKeyboard } from '@/components/DismissKeyboard';
 import { ErrorScreen, LoadingScreen } from '@/components/StatusScreens';
 import { UserAvatar } from '@/components/UserAvatar';
 import { directConversationId } from '@/crypto';
+import { useNotificationStore } from '@/notifications/store';
 import { getEncryptionKeyPair, useWalletStore } from '@/wallet/walletStore';
 
 /** iOS standard navigation bar height (below the status bar); the screen's header is a regular Stack header. */
@@ -47,6 +48,14 @@ export default function ChatScreen() {
 
   const conversationId = useMemo(() => directConversationId(me, address as Address), [me, address]);
   const messages = useMessages(conversationId);
+
+  // While this chat is on screen, its messages need no notification banner.
+  useFocusEffect(
+    useCallback(() => {
+      useNotificationStore.getState().setActiveConversation(conversationId.toLowerCase());
+      return () => useNotificationStore.getState().setActiveConversation(null);
+    }, [conversationId]),
+  );
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [selected, setSelected] = useState<VerifiedMessage | null>(null);

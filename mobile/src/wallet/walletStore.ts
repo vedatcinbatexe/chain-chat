@@ -3,6 +3,7 @@ import type { Address, Hex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 
 import { useSessionStore } from '@/auth/sessionStore';
+import { useNotificationStore } from '@/notifications/store';
 import { encryptionKeyPairFromSecret, generateEncryptionKeyPair, type EncryptionKeyPair } from '@/crypto';
 import { deleteSecrets, isLoggedOut, loadSecrets, saveSecrets, setLoggedOut, type StoredSecrets } from './storage';
 
@@ -102,6 +103,7 @@ export const useWalletStore = create<WalletState>()((set) => {
       await setLoggedOut(true);
       session = null; // the keys leave memory; they stay in secure storage
       useSessionStore.getState().setSession(null);
+      useNotificationStore.getState().clear(); // the next user of this phone must not see them
       set({ status: 'locked', address: null, encryptionPublicKey: null, lockedAddress });
     },
 
@@ -119,6 +121,7 @@ export const useWalletStore = create<WalletState>()((set) => {
       await deleteSecrets();
       session = null;
       useSessionStore.getState().setSession(null);
+      useNotificationStore.getState().clear(); // the next user of this phone must not see them
       set({ status: 'empty', address: null, encryptionPublicKey: null, lockedAddress: null });
     },
   };

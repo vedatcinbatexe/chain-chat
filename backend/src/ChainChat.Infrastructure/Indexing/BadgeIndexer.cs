@@ -1,6 +1,7 @@
 using System.Numerics;
 using ChainChat.Core.Crypto;
 using ChainChat.Infrastructure.Chain;
+using ChainChat.Infrastructure.Notifications;
 using ChainChat.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,6 +48,7 @@ public sealed class BadgeIndexer(
     ContractDeployments deployments,
     BadgeService badges,
     IGroupNotifier notifier,
+    IUserNotifier users,
     IOptions<IndexerOptions> options,
     TimeProvider time,
     ILogger<BadgeIndexer> logger) : ContractEventIndexer(scopes, chain, deployments, options, time, logger)
@@ -62,31 +64,44 @@ public sealed class BadgeIndexer(
     private async Task OnTransferAsync(ChainChatDbContext db, string contract, BadgeTransferEvent e, CancellationToken ct)
     {
         var from = EthAddress.Normalize(e.From);
-        if (from == ZeroAddress) return; // a mint: nobody lost a badge
+        var to = EthAddress.Normalize(e.To);
+        var minted = from == ZeroAddress;
+
+        if (to != ZeroAddress)
+        {
+            var badge = await badges.TypeNameOfTokenAsync(contract, e.TokenId, ct);
+            await users.NotifyAsync(to, new UserNotification(
+                "BadgeReceived", "New badge", minted ? $"An administrator gave you the {badge} badge." : $"You received the {badge} badge."), ct);
+        }
+
+        if (minted) return; // a mint: nobody lost a badge
 
         var gated = await db.Participants
             .Where(p => p.Address == from && p.RemovedAt == null)
-            .Join(db.Groups.Where(g => g.RequiredBadgeContract == contract), p => p.ConversationId, g => g.ConversationId, (p, g) => new { Membership = p, g.RequiredBadgeTypes })
+            .Join(db.Groups.Where(g => g.RequiredBadgeContract == contract), p => p.ConversationId, g => g.ConversationId, (p, g) => new { Membership = p, g.RequiredBadgeTypes, g.Name })
             .ToListAsync(ct);
         if (gated.Count == 0) return;
 
         // Ask the chain what they hold now, so replaying old events can never remove a current holder.
         var held = await badges.HeldAsync(contract, from, gated.SelectMany(g => g.RequiredBadgeTypes), ct);
-        var memberships = gated.Where(g => !g.RequiredBadgeTypes.All(held.Contains)).Select(g => g.Membership).ToList();
-        if (memberships.Count == 0) return;
+        var lost = gated.Where(g => !g.RequiredBadgeTypes.All(held.Contains)).ToList();
+        if (lost.Count == 0) return;
 
-        foreach (var membership in memberships) membership.RemovedAt = Time.GetUtcNow();
+        foreach (var group in lost) group.Membership.RemovedAt = Time.GetUtcNow();
         await db.SaveChangesAsync(ct); // saved before notifying, so apps that refetch see the new member list
 
-        foreach (var membership in memberships)
+        foreach (var group in lost)
         {
+            var conversationId = group.Membership.ConversationId;
             var remaining = await db.Participants.AsNoTracking()
-                .Where(p => p.ConversationId == membership.ConversationId && p.RemovedAt == null)
+                .Where(p => p.ConversationId == conversationId && p.RemovedAt == null)
                 .Select(p => p.Address)
                 .ToListAsync(ct);
-            await notifier.MembersChangedAsync(membership.ConversationId, [.. remaining, from], "BadgeRevoked", ct);
+            await notifier.MembersChangedAsync(conversationId, [.. remaining, from], "BadgeRevoked", ct);
+            await users.NotifyAsync(from, new UserNotification(
+                "RemovedFromGroup", "Removed from a group", $"You no longer hold a badge that \"{group.Name}\" requires.", conversationId), ct);
         }
 
-        Logger.LogInformation("{Address} transferred badge #{TokenId} away and was removed from {Count} gated group(s)", from, e.TokenId, memberships.Count);
+        Logger.LogInformation("{Address} transferred badge #{TokenId} away and was removed from {Count} gated group(s)", from, e.TokenId, lost.Count);
     }
 }

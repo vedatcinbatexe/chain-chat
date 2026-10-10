@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftRight, Award, LayoutDashboard, LogOut, MessageSquareLock, MessagesSquare, ScrollText, Settings, ShieldCheck, Users, UsersRound } from 'lucide-react';
+import { ArrowLeftRight, Award, LayoutDashboard, Megaphone, LogOut, MessageSquareLock, MessagesSquare, ScrollText, Settings, ShieldCheck, Users, UsersRound } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 import { api } from '@/lib/api';
@@ -16,6 +16,7 @@ const NAV = [
   { to: '/badges', label: 'Badges', icon: Award },
   { to: '/messages', label: 'Messages', icon: MessagesSquare },
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+  { to: '/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/admins', label: 'Admins', icon: ShieldCheck },
   { to: '/audit', label: 'Audit log', icon: ScrollText },
   { to: '/system', label: 'System', icon: Settings },
