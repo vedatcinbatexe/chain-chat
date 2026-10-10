@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button, HelperText, Text, useTheme } from 'react-native-paper';
 
 import { conversationsQueryKey } from '@/api/conversations';
+import { describeError } from '@/api/errors';
 import { getInvitePreview, groupQueryKey, joinGroup } from '@/api/groups';
 import { ErrorScreen, LoadingScreen } from '@/components/StatusScreens';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -48,7 +49,7 @@ export default function JoinGroupScreen() {
       await queryClient.invalidateQueries({ queryKey: conversationsQueryKey });
       openGroup();
     } catch (e) {
-      setError((e as Error).message);
+      setError(describeError(e, 'Could not join the group. Please try again.'));
       setJoining(false);
     }
   };

@@ -3,7 +3,9 @@ import { Redirect, Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
 import type { ColorValue } from 'react-native';
 
+import { useSessionStore } from '@/auth/sessionStore';
 import { ChatConnection } from '@/chat/ChatConnection';
+import { BlockedScreen } from '@/components/BlockedScreen';
 import { ErrorScreen, LoadingScreen } from '@/components/StatusScreens';
 import { useOnboardingState } from '@/onboarding/useOnboardingState';
 
@@ -18,6 +20,7 @@ function tabIcon(name: IconName) {
 /** The main app is only reachable once the wallet is registered on-chain with this phone's encryption key. */
 export default function TabsLayout() {
   const onboarding = useOnboardingState();
+  const banned = useSessionStore((state) => state.banned);
 
   switch (onboarding.kind) {
     case 'no-wallet':
@@ -30,6 +33,9 @@ export default function TabsLayout() {
     case 'error':
       return <ErrorScreen message={onboarding.message} onRetry={onboarding.retry} />;
   }
+
+  // Blocked by an administrator: nothing in the app works until the block is lifted.
+  if (banned) return <BlockedScreen />;
 
   return (
     <>

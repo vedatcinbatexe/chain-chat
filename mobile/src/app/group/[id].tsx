@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Hex } from 'viem';
 
 import { conversationsQueryKey, useMessages } from '@/api/conversations';
+import { describeSendFailure } from '@/api/errors';
 import { leaveGroup, useGroup } from '@/api/groups';
 import { addMessageToCache, loadPresence, toggleReaction, useChatConnectionStore } from '@/chat/connection';
 import { GroupInfoSheet } from '@/chat/GroupInfoSheet';
@@ -103,7 +104,7 @@ export default function GroupChatScreen() {
       })
       .catch((error) => {
         console.warn('Group send failed', error);
-        setPending((previous) => previous.map((p) => (p.key === key ? { ...p, failed: true } : p)));
+        setPending((previous) => previous.map((p) => (p.key === key ? { ...p, failed: true, reason: describeSendFailure(error) } : p)));
       });
   };
 
