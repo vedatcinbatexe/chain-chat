@@ -74,6 +74,19 @@ export function decryptGroupMessage(ciphertext: Hex, me: Address, senderPublicKe
   }
 }
 
+/**
+ * Whether the message carries a wrapped key for `me`. False for messages sent before `me` joined the group
+ * (or after leaving): those were never encrypted to this key and cannot be read, by design.
+ */
+export function isGroupMessageFor(ciphertext: Hex, me: Address): boolean {
+  try {
+    const envelope = JSON.parse(hexToString(ciphertext)) as GroupEnvelope;
+    return envelope?.v === 1 && typeof envelope.k === 'object' && me.toLowerCase() in envelope.k;
+  } catch {
+    return true; // not a readable envelope: let the chat show it as a message that failed to decrypt
+  }
+}
+
 function toKey(key: Hex): Uint8Array {
   if (size(key) !== 32) throw new Error('Encryption keys must be 32 bytes');
   return hexToBytes(key);

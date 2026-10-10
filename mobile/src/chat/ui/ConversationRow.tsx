@@ -5,7 +5,7 @@ import { formatUnits } from 'viem';
 
 import type { ConversationSummary } from '@/api/conversations';
 import { UserAvatar } from '@/components/UserAvatar';
-import { decrypt, decryptGroupMessage } from '@/crypto';
+import { decrypt, decryptGroupMessage, isGroupMessageFor } from '@/crypto';
 import { getEncryptionKeyPair, useWalletStore } from '@/wallet/walletStore';
 import { useIsOnline } from '../liveStore';
 import { parsePaymentPayload } from '../payment';
@@ -38,7 +38,8 @@ export function ConversationRow({ conversation }: { conversation: ConversationSu
   const body = payment ? `💸 ${Number(formatUnits(BigInt(payment.amount), 18)).toLocaleString()} CHAT` : text;
   const mine = last?.sender.toLowerCase() === me?.toLowerCase();
   const author = mine ? 'You: ' : isGroup && key ? `${key.username}: ` : '';
-  const preview = !last ? (isGroup ? 'No messages yet — say hello' : 'No messages yet') : body === null ? '🔒 Encrypted message' : `${author}${body}`;
+  const beforeJoining = isGroup && !!last && !!me && body === null && !isGroupMessageFor(last.ciphertext, me);
+  const preview = !last ? (isGroup ? 'No messages yet — say hello' : 'No messages yet') : beforeJoining ? 'You joined — say hello' : body === null ? '🔒 Encrypted message' : `${author}${body}`;
 
   const title = isGroup ? conversation.group!.name : `@${conversation.peer!.username}`;
   const open = () =>

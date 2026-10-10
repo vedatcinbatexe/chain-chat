@@ -26,6 +26,7 @@ chain-chat/
 │   ├── src/
 │   └── tests/
 ├── mobile/                 # Expo (React Native + TypeScript) app — runs on phones via Expo Go
+├── web-dashboard/          # Admin panel (React + TypeScript + Tailwind CSS) + Dockerfile
 ├── shared/
 │   ├── deployments/        # Contract addresses + ABIs per network (generated)
 │   └── test-vectors/       # Shared hash / Merkle test vectors (C# ⇄ TypeScript ⇄ Solidity)
@@ -67,6 +68,7 @@ docker compose up -d --build
 |---|---|---|
 | API | 5080 | `/health`, `/api/v1/system/info`, `/api/v1/auth/*` (Sign-In with Ethereum), `/api/v1/drip`, `/api/v1/users/*` (search, profiles), `/api/v1/conversations/*`, `/api/v1/messages/{id}/proof`, real-time hub `/hubs/chat`, API docs at `/scalar` |
 | Contracts deployer | — | One-off job: deploys the contracts to Anvil, writes `shared/deployments/anvil.json` |
+| Admin dashboard | 5173 | React admin panel — see [web-dashboard/README.md](web-dashboard/README.md) |
 | PostgreSQL 17 | 5432 | user / password / db: `chainchat` — migrations are applied by the API on startup |
 | Anvil (local EVM chain) | 8545 | chain id `31337`, 2 s blocks, 20 funded test accounts |
 | Redis *(optional)* | 6379 | `docker compose --profile extras up -d` |
@@ -87,6 +89,10 @@ cd mobile
 npm install
 npm start    # scan the QR code with your phone
 ``` The Expo dev server runs directly on the laptop (`npx expo start`) so phones on the same network can scan its QR code.
+
+### Admin dashboard
+
+A web admin panel at <http://localhost:5173> for the people who run ChainChat: users (ban, add balance), groups, message metadata, transactions, admins, audit log and system settings. Only admin wallets can sign in, with Sign-In with Ethereum; locally, "Use the local dev account" signs in as the root admin. Details in [web-dashboard/README.md](web-dashboard/README.md).
 
 ### Demo tools
 
@@ -123,4 +129,4 @@ dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat
 
 ## Status
 
-🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles, end-to-end encrypted 1:1 messaging, on-chain message anchoring with in-app verification, in-chat CHAT payments verified from on-chain receipts, group chat with invite links, typing indicators, online status and reactions. Next: NFT gating for groups, CI, testnet deployment.
+🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles, end-to-end encrypted 1:1 messaging, on-chain message anchoring with in-app verification, in-chat CHAT payments verified from on-chain receipts, group chat with invite links, typing indicators, online status and reactions, web admin dashboard. Next: NFT gating for groups, CI, testnet deployment.

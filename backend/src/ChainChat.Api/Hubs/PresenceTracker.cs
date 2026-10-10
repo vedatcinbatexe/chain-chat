@@ -31,4 +31,6 @@ public sealed class PresenceTracker
     }
 
     public bool IsOnline(string address) => _connections.ContainsKey(address);
+
+    public int OnlineCount => _connections.Count;
 }

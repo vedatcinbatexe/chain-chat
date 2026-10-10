@@ -40,6 +40,7 @@ public sealed class GasDripService(
     ChainClient chain,
     IOptions<GasDripOptions> options,
     IOptions<ChainOptions> chainOptions,
+    ChainChat.Infrastructure.Admin.SystemSettings systemSettings,
     TimeProvider time,
     ILogger<GasDripService> logger)
 {
@@ -49,7 +50,8 @@ public sealed class GasDripService(
     public async Task<GasDripResult> DripAsync(string address, CancellationToken ct)
     {
         var settings = options.Value;
-        if (!settings.Enabled) return new GasDripResult(GasDripStatus.Disabled);
+        // Off in configuration, or switched off by an admin in the dashboard.
+        if (!settings.Enabled || !(await systemSettings.GetAsync(ct)).GasDripEnabled) return new GasDripResult(GasDripStatus.Disabled);
 
         var normalized = EthAddress.Normalize(address);
         if (await db.GasDrips.AnyAsync(d => d.Address == normalized, ct)) return new GasDripResult(GasDripStatus.AlreadyDripped);

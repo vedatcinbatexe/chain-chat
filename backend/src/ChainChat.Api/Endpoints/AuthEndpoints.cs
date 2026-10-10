@@ -64,8 +64,9 @@ public static class AuthEndpoints
         return TypedResults.Ok(new NonceResponse(nonce, settings.Domain, settings.Uri, chain.Value.ChainId, settings.Statement, expiresAt));
     }
 
-    private static Results<Ok<SessionResponse>, ProblemHttpResult> Verify(
+    private static async Task<Results<Ok<SessionResponse>, ProblemHttpResult>> Verify(
         VerifyRequest request,
+        ChainChat.Infrastructure.Persistence.ChainChatDbContext db,
         NonceStore nonces,
         TokenService tokens,
         IOptions<AuthOptions> auth,
@@ -93,6 +94,13 @@ public static class AuthEndpoints
         {
             logger.LogInformation("Sign-in rejected for {Address}: unknown, expired or reused nonce", message.Address);
             return Unauthorized("NonceInvalid");
+        }
+
+        var normalized = EthAddress.Normalize(message.Address);
+        if (await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.BannedUsers, b => b.Address == normalized))
+        {
+            logger.LogInformation("Sign-in rejected for {Address}: banned", message.Address);
+            return Unauthorized("Banned");
         }
 
         var (token, expiresAt) = tokens.Issue(message.Address);

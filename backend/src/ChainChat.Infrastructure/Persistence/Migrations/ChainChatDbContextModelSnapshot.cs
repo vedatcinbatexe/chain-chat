@@ -23,6 +23,125 @@ namespace ChainChat.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ChainChat.Core.Domain.AdminAccount", b =>
+                {
+                    b.Property<string>("Address")
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("AddedBy")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("added_by");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("note");
+
+                    b.HasKey("Address")
+                        .HasName("pk_admins");
+
+                    b.ToTable("admins", (string)null);
+                });
+
+            modelBuilder.Entity("ChainChat.Core.Domain.AdminAuditEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("Admin")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("admin");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("details");
+
+                    b.Property<string>("Target")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("target");
+
+                    b.HasKey("Id")
+                        .HasName("pk_admin_audit_log");
+
+                    b.ToTable("admin_audit_log", (string)null);
+                });
+
+            modelBuilder.Entity("ChainChat.Core.Domain.AdminFunding", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("Admin")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("admin");
+
+                    b.Property<BigInteger>("Amount")
+                        .HasColumnType("numeric(78,0)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Asset")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("asset");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("TxHash")
+                        .IsRequired()
+                        .HasMaxLength(66)
+                        .HasColumnType("character varying(66)")
+                        .HasColumnName("tx_hash");
+
+                    b.HasKey("Id")
+                        .HasName("pk_admin_fundings");
+
+                    b.HasIndex("Address")
+                        .HasDatabaseName("ix_admin_fundings_address");
+
+                    b.ToTable("admin_fundings", (string)null);
+                });
+
             modelBuilder.Entity("ChainChat.Core.Domain.AnchorBatch", b =>
                 {
                     b.Property<long>("Id")
@@ -88,6 +207,34 @@ namespace ChainChat.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_anchor_batches_status");
 
                     b.ToTable("anchor_batches", (string)null);
+                });
+
+            modelBuilder.Entity("ChainChat.Core.Domain.BannedUser", b =>
+                {
+                    b.Property<string>("Address")
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("BannedBy")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("banned_by");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.HasKey("Address")
+                        .HasName("pk_banned_users");
+
+                    b.ToTable("banned_users", (string)null);
                 });
 
             modelBuilder.Entity("ChainChat.Core.Domain.ChainSyncState", b =>
@@ -463,6 +610,35 @@ namespace ChainChat.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_processed_chain_events_block_number");
 
                     b.ToTable("processed_chain_events", (string)null);
+                });
+
+            modelBuilder.Entity("ChainChat.Core.Domain.SystemSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key")
+                        .HasName("pk_system_settings");
+
+                    b.ToTable("system_settings", (string)null);
                 });
 
             modelBuilder.Entity("ChainChat.Core.Domain.User", b =>

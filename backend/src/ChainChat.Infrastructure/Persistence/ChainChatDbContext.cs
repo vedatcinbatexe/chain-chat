@@ -16,6 +16,11 @@ public class ChainChatDbContext(DbContextOptions<ChainChatDbContext> options) : 
     public DbSet<ChainSyncState> ChainSyncStates => Set<ChainSyncState>();
     public DbSet<ProcessedChainEvent> ProcessedChainEvents => Set<ProcessedChainEvent>();
     public DbSet<GasDrip> GasDrips => Set<GasDrip>();
+    public DbSet<AdminAccount> Admins => Set<AdminAccount>();
+    public DbSet<BannedUser> BannedUsers => Set<BannedUser>();
+    public DbSet<AdminFunding> AdminFundings => Set<AdminFunding>();
+    public DbSet<AdminAuditEntry> AdminAuditEntries => Set<AdminAuditEntry>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChainChatDbContext).Assembly);

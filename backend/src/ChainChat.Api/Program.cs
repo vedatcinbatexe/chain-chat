@@ -26,6 +26,7 @@ try
     builder.Services.AddApiRateLimiting(builder.Configuration);
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddWalletAuthentication(builder.Configuration);
+    builder.Services.AddAdminAuthorization();
     builder.Services.AddSignalR();
     builder.Services.AddSingleton<IUserIdProvider, WalletUserIdProvider>();
     builder.Services.AddSingleton<PresenceTracker>();
@@ -60,6 +61,7 @@ try
     app.MapConversationEndpoints();
     app.MapAnchoringEndpoints();
     app.MapGroupEndpoints();
+    app.MapAdminEndpoints();
     app.MapHub<ChatHub>(ChatHub.Path);
 
     await app.RunAsync();

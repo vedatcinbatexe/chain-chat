@@ -4,15 +4,18 @@ import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 
 
 import { useSessionStore } from '@/auth/sessionStore';
 import { encryptionKeyPairFromSecret, generateEncryptionKeyPair, type EncryptionKeyPair } from '@/crypto';
-import { deleteSecrets, loadSecrets, saveSecrets, type StoredSecrets } from './storage';
+import { deleteSecrets, isLoggedOut, loadSecrets, saveSecrets, setLoggedOut, type StoredSecrets } from './storage';
 
-export type WalletStatus = 'loading' | 'empty' | 'ready';
+/** 'locked': a wallet is saved on this phone, but the user logged out. */
+export type WalletStatus = 'loading' | 'empty' | 'locked' | 'ready';
 
 interface WalletState {
   status: WalletStatus;
   /** Public values only — safe to render. Secrets stay in the module-level `session` below. */
   address: Address | null;
   encryptionPublicKey: Hex | null;
+  /** While logged out: the address of the saved wallet, to show on the log-in screen. */
+  lockedAddress: Address | null;
 
   /** Loads an existing wallet from secure storage on app start. */
   load: () => Promise<void>;
@@ -20,6 +23,10 @@ interface WalletState {
   create: () => Promise<void>;
   /** Imports an existing wallet key (e.g. a seeded test wallet) and creates a new encryption key pair. */
   importPrivateKey: (privateKey: string) => Promise<void>;
+  /** Ends the session but keeps the keys on this phone; `login` brings the same identity back. */
+  logout: () => Promise<void>;
+  /** Unlocks the saved wallet again after a logout. */
+  login: () => Promise<void>;
   /** Deletes the keys from this device. Without a backup, the identity is gone. */
   remove: () => Promise<void>;
 }
@@ -47,7 +54,7 @@ export const useWalletStore = create<WalletState>()((set) => {
       account: privateKeyToAccount(secrets.walletPrivateKey),
       encryption: encryptionKeyPairFromSecret(secrets.encryptionSecretKey),
     };
-    set({ status: 'ready', address: session.account.address, encryptionPublicKey: session.encryption.publicKey });
+    set({ status: 'ready', address: session.account.address, encryptionPublicKey: session.encryption.publicKey, lockedAddress: null });
   };
 
   const persistAndUnlock = async (walletPrivateKey: Hex) => {
@@ -55,6 +62,7 @@ export const useWalletStore = create<WalletState>()((set) => {
     // registered with another key, it is rotated on-chain with Registry.updateKey during onboarding (Phase 9).
     const secrets: StoredSecrets = { walletPrivateKey, encryptionSecretKey: generateEncryptionKeyPair().secretKey };
     await saveSecrets(secrets);
+    await setLoggedOut(false);
     unlock(secrets);
   };
 
@@ -62,12 +70,14 @@ export const useWalletStore = create<WalletState>()((set) => {
     status: 'loading',
     address: null,
     encryptionPublicKey: null,
+    lockedAddress: null,
 
     load: async () => {
       try {
         const secrets = await loadSecrets();
-        if (secrets) unlock(secrets);
-        else set({ status: 'empty' });
+        if (!secrets) set({ status: 'empty' });
+        else if (await isLoggedOut()) set({ status: 'locked', lockedAddress: privateKeyToAccount(secrets.walletPrivateKey).address });
+        else unlock(secrets);
       } catch (error) {
         console.warn('Could not read the wallet from secure storage', error);
         set({ status: 'empty' });
@@ -86,11 +96,30 @@ export const useWalletStore = create<WalletState>()((set) => {
       await persistAndUnlock(normalized);
     },
 
+    logout: async () => {
+      if (!session) return;
+      const lockedAddress = session.account.address;
+      await setLoggedOut(true);
+      session = null; // the keys leave memory; they stay in secure storage
+      useSessionStore.getState().setSession(null);
+      set({ status: 'locked', address: null, encryptionPublicKey: null, lockedAddress });
+    },
+
+    login: async () => {
+      const secrets = await loadSecrets();
+      if (!secrets) {
+        set({ status: 'empty', lockedAddress: null });
+        return;
+      }
+      await setLoggedOut(false);
+      unlock(secrets);
+    },
+
     remove: async () => {
       await deleteSecrets();
       session = null;
       useSessionStore.getState().setSession(null);
-      set({ status: 'empty', address: null, encryptionPublicKey: null });
+      set({ status: 'empty', address: null, encryptionPublicKey: null, lockedAddress: null });
     },
   };
 });

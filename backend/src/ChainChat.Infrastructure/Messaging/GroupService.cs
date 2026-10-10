@@ -29,10 +29,10 @@ public sealed class GroupException(string code, int status) : Exception(code)
 }
 
 /// <summary>Group conversations joined with an invite link (SDD §6.5). Messages stay end-to-end encrypted to all members.</summary>
-public sealed class GroupService(ChainChatDbContext db, TimeProvider time)
+public sealed class GroupService(ChainChatDbContext db, TimeProvider time, ChainChat.Infrastructure.Admin.SystemSettings settings)
 {
     public const int MaxNameLength = 64;
-    public const int MaxMembers = 20; // per-member key wrapping keeps messages small up to this size
+    public const int MaxMembers = 20; // upper bound: per-member key wrapping keeps messages small up to this size
     private const string Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
     public async Task<GroupInfo> CreateAsync(string creator, string name, CancellationToken ct)
@@ -41,6 +41,8 @@ public sealed class GroupService(ChainChatDbContext db, TimeProvider time)
         var trimmed = name.Trim();
         if (trimmed.Length is 0 or > MaxNameLength) throw new GroupException("InvalidName", 400);
         await EnsureRegisteredAsync(me, ct);
+        var current = await settings.GetAsync(ct);
+        if (!current.GroupCreationEnabled) throw new GroupException("GroupCreationDisabled", 403);
 
         var now = time.GetUtcNow();
         var id = Hex.FromBytes(RandomNumberGenerator.GetBytes(32)); // group ids are random (SPEC.md §2)
@@ -54,7 +56,7 @@ public sealed class GroupService(ChainChatDbContext db, TimeProvider time)
                 ConversationId = id,
                 Name = trimmed,
                 InviteCode = RandomNumberGenerator.GetString(Alphabet, 22), // ~131 bits: unguessable
-                MaxMembers = MaxMembers,
+                MaxMembers = current.GroupMaxMembers,
                 CreatedBy = me,
                 CreatedAt = now,
             },
@@ -135,5 +137,6 @@ public sealed class GroupService(ChainChatDbContext db, TimeProvider time)
     private async Task EnsureRegisteredAsync(string address, CancellationToken ct)
     {
         if (!await db.Users.AnyAsync(u => u.Address == address, ct)) throw new GroupException("NotRegistered", 403);
+        if (await db.BannedUsers.AnyAsync(b => b.Address == address, ct)) throw new GroupException("Banned", 403);
     }
 }

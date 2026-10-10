@@ -1,6 +1,6 @@
 # ChainChat — local development environment
 #
-# Default services:                     postgres, anvil, contracts-deployer (one-off), api
+# Default services:                     postgres, anvil, contracts-deployer (one-off), api, dashboard
 # Optional services (profile "extras"): redis, rabbitmq
 #
 #   docker compose up -d --build             # whole stack (rebuilds the API image)
@@ -104,6 +104,21 @@ services:
     volumes:
       # Contract addresses/ABIs written by the deploy job (Phase 2).
       - ../../shared/deployments:/app/deployments:ro
+
+  # Admin dashboard (React): static files served by nginx, which also forwards /api to the API.
+  # Keep it on port 5173, or change Admin__Domain / Admin__Uri on the API: the sign-in message is bound to this address.
+  dashboard:
+    build:
+      context: ../../web-dashboard
+    image: chainchat-dashboard:local
+    container_name: chainchat-dashboard
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      API_UPSTREAM: http://api:8080
+    ports:
+      - "${DASHBOARD_PORT:-5173}:80"
 
   redis:
     image: redis:7-alpine

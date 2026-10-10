@@ -30,7 +30,7 @@ public sealed class MessageRejectedException(string code) : Exception($"Message 
     public string Code { get; } = code;
 }
 
-public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILogger<MessageService> logger)
+public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ChainChat.Infrastructure.Admin.SystemSettings settings, ILogger<MessageService> logger)
 {
     /// <summary>
     /// Validates and stores a 1:1 or group message from <paramref name="sender"/> (the signed-in wallet).
@@ -57,6 +57,10 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
                 return new AcceptedMessage(existing, existingPayment, false, []);
             }
         }
+
+        // Admin controls (dashboard): messaging can be paused for everyone, and single wallets can be banned.
+        if ((await settings.GetAsync(ct)).MessagingPaused) throw new MessageRejectedException("MessagingPaused");
+        if (await db.BannedUsers.AnyAsync(b => b.Address == senderAddress, ct)) throw new MessageRejectedException("Banned");
 
         List<string> audience;
         if (isGroup)
