@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { ProgressBar, Text, useTheme } from 'react-native-paper';
+import { Icon, ProgressBar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Hex } from 'viem';
 
@@ -23,7 +23,7 @@ import { shorten } from '@/components/CopyableValue';
 import { DismissKeyboard } from '@/components/DismissKeyboard';
 import { ErrorScreen, LoadingScreen } from '@/components/StatusScreens';
 import { UserAvatar } from '@/components/UserAvatar';
-import { decryptGroupMessage } from '@/crypto';
+import { decryptGroupMessage, isGroupMessageFor } from '@/crypto';
 import { getEncryptionKeyPair, useWalletStore } from '@/wallet/walletStore';
 
 /** iOS standard navigation bar height (below the status bar); the screen's header is a regular Stack header. */
@@ -122,7 +122,10 @@ export default function GroupChatScreen() {
   const loadingHistory = messages.isPending || (!!messages.data?.length && !verified.data);
   // Reactions come straight from the message cache, so they update the moment the hub reports them.
   const liveReactions = new Map(messages.data?.map((m) => [m.id, m.reactions ?? []]));
-  const rows = buildRows(verified.data ?? [], pending);
+  // Messages from before this member joined were never encrypted to their key: they are counted, not shown.
+  const readable = (verified.data ?? []).filter((m) => m.text !== null || isGroupMessageFor(m.dto.ciphertext, me));
+  const beforeJoining = (verified.data?.length ?? 0) - readable.length;
+  const rows = buildRows(readable, pending);
   const subtitle = describeTyping(typing.map(nameOf)) ?? `${info.members.length} members · ${onlineCount} online`;
 
   return (
@@ -186,6 +189,17 @@ export default function GroupChatScreen() {
               />
             )
           }
+          ListFooterComponent={
+            beforeJoining > 0 ? (
+              <View style={[styles.joinNotice, { backgroundColor: theme.colors.surfaceVariant }]}>
+                <Icon source="lock-clock" size={16} color={theme.colors.onSurfaceVariant} />
+                <Text variant="labelMedium" style={[styles.joinNoticeText, { color: theme.colors.onSurfaceVariant }]}>
+                  {beforeJoining === 1 ? '1 earlier message was' : `${beforeJoining} earlier messages were`} sent before you joined. They were encrypted only for the
+                  members at that time, so they cannot be shown.
+                </Text>
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             loadingHistory ? (
               <LoadingHistory />
@@ -241,5 +255,7 @@ const styles = StyleSheet.create({
   headerText: { flexShrink: 1 },
   headerName: { fontWeight: '700' },
   progress: { height: 3 },
+  joinNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, alignSelf: 'center', maxWidth: 340, marginVertical: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  joinNoticeText: { flex: 1 },
   list: { paddingHorizontal: 12, paddingVertical: 10, flexGrow: 1 },
 });

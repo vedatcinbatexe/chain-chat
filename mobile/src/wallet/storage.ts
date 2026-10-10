@@ -13,6 +13,7 @@ const OPTIONS: SecureStore.SecureStoreOptions = {
 const KEYS = {
   walletPrivateKey: 'chainchat.wallet.privateKey',
   encryptionSecretKey: 'chainchat.encryption.secretKey',
+  loggedOut: 'chainchat.session.loggedOut',
 } as const;
 
 export interface StoredSecrets {
@@ -34,7 +35,18 @@ export async function loadSecrets(): Promise<StoredSecrets | null> {
   return { walletPrivateKey: walletPrivateKey as Hex, encryptionSecretKey: encryptionSecretKey as Hex };
 }
 
+/** Whether the user logged out: the keys are still on the phone, but the app asks before using them again. */
+export async function isLoggedOut(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(KEYS.loggedOut, OPTIONS)) === 'true';
+}
+
+export async function setLoggedOut(loggedOut: boolean): Promise<void> {
+  if (loggedOut) await SecureStore.setItemAsync(KEYS.loggedOut, 'true', OPTIONS);
+  else await SecureStore.deleteItemAsync(KEYS.loggedOut, OPTIONS);
+}
+
 export async function deleteSecrets(): Promise<void> {
+  await SecureStore.deleteItemAsync(KEYS.loggedOut, OPTIONS);
   await SecureStore.deleteItemAsync(KEYS.walletPrivateKey, OPTIONS);
   await SecureStore.deleteItemAsync(KEYS.encryptionSecretKey, OPTIONS);
 }

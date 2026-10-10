@@ -1,3 +1,4 @@
+using ChainChat.Infrastructure.Admin;
 using ChainChat.Infrastructure.Anchoring;
 using ChainChat.Infrastructure.Chain;
 using ChainChat.Infrastructure.Indexing;
@@ -55,6 +56,14 @@ public static class DependencyInjection
         // Singleton so the API can trigger a run ("anchor now"); also registered as the hosted service.
         services.AddSingleton<AnchoringJob>();
         services.AddHostedService(sp => sp.GetRequiredService<AnchoringJob>());
+
+        services.AddOptions<AdminOptions>()
+            .Bind(configuration.GetSection(AdminOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<SystemSettings>();
+        services.AddScoped<AdminService>();
+        services.AddScoped<AdminFundingService>();
 
         services.AddScoped<MessageService>();
         services.AddScoped<GroupService>();

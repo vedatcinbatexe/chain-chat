@@ -27,6 +27,7 @@ export default function SettingsScreen() {
   const address = useWalletStore((state) => state.address);
   const encryptionPublicKey = useWalletStore((state) => state.encryptionPublicKey);
   const removeWallet = useWalletStore((state) => state.remove);
+  const logout = useWalletStore((state) => state.logout);
   const chatStatus = useChatConnectionStore((state) => state.status);
 
   const onboarding = useOnboardingState();
@@ -61,6 +62,18 @@ export default function SettingsScreen() {
         { text: 'Remove', style: 'destructive', onPress: () => removeWallet() },
       ],
     );
+
+  const onLogout = () =>
+    Alert.alert('Log out?', 'Your wallet stays saved on this phone. You can log back in with one tap, as the same user.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        onPress: async () => {
+          await logout();
+          queryClient.clear(); // drop the cached chats of this session
+        },
+      },
+    ]);
 
   if (!address) return null;
   const username = onboarding.kind === 'complete' ? onboarding.username : null;
@@ -145,6 +158,12 @@ export default function SettingsScreen() {
             </View>
           </View>
         )}
+      </SectionCard>
+
+      <SectionCard title="Session" icon="account-circle-outline" subtitle="Logging out keeps your wallet on this phone">
+        <Button mode="contained-tonal" icon="logout" onPress={onLogout}>
+          Log out
+        </Button>
       </SectionCard>
 
       <SectionCard title="Danger zone" icon="alert-outline" tone="danger" subtitle="Removing the wallet cannot be undone without a key backup">

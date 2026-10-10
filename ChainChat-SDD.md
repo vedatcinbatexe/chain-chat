@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.4 (MVP)
+**Version:** 1.5 (MVP)
 
 ---
 
@@ -56,6 +56,7 @@ ChainChat applies the cryptographic and structural building blocks covered in BL
 | 6 | Group chat with invite links, typing, presence and reactions (NFT gating optional) | Member keys resolved from chain; ERC-721 ownership checked on-chain for gated groups |
 | 7 | Signed, hash-chained messages with on-chain anchoring & verification | Wallet signatures + Merkle roots stored on-chain |
 | 8 | Blockchain activity screen | Explorer links for every transaction |
+| 9 | Web admin dashboard (§4.4) | Wallet-based admin login; ERC-20 minting by the contract owner; shows what a server operator can and cannot do |
 
 ### 2.2 On-Chain vs Off-Chain Decision
 
@@ -73,7 +74,7 @@ The core design principle is: **the blockchain holds trust, the server holds dat
 
 ### 2.3 Actors
 - **User:** owns a wallet, chats, pays, joins groups.
-- **Admin (course instructor / demo operator):** mints class badges and triggers anchoring manually.
+- **Admin (course instructor / demo operator):** mints class badges, triggers anchoring, and operates the service through the web dashboard (§4.4).
 - **Verifier (anyone):** checks transactions and proofs on the block explorer.
 
 ---
@@ -212,6 +213,22 @@ flowchart LR
 - **The backend** is *untrusted for content and integrity*: it only ever sees ciphertext, and it cannot forge identity, payments or messages.
 - **The blockchain** is the source of truth for identity, ownership, payments and integrity roots.
 - PostgreSQL is a **cache/index of chain state**, never the authority for it.
+
+### 4.4 Admin Dashboard
+A web application (`web-dashboard/`: React, TypeScript, Tailwind CSS) for the people who operate ChainChat. It talks only to the backend's `/api/v1/admin` routes.
+
+**Access.** Admins have no passwords either: they sign in with Sign-In with Ethereum (§6.2), using a message bound to the dashboard's own address. The backend issues a token only to admin wallets and re-checks the admin list on every request, so removing an admin takes effect immediately. *Root admins* are listed in the server configuration and can add or remove other admins; those are stored in the database.
+
+**What admins can do**
+- **Users:** search, inspect on-chain identity and balances (read from the chain), ban and unban. A ban blocks sign-in, sending messages and joining groups on this server.
+- **Add balance:** send test ETH, or mint CHAT (`ChatToken.mint`, owner only), to any address. Each funding is a real transaction, recorded with the admin who made it.
+- **Groups:** inspect members, remove a member, replace the invite link.
+- **Messages:** metadata only — sender, conversation, size, hash, anchoring state.
+- **Transactions:** in-chat payments, admin fundings, gas drips and anchor batches.
+- **System:** runtime settings (pause messaging, allow group creation, maximum group size, gas drip), trigger anchoring, and view chain, indexer and configuration status. Secrets are never returned.
+- **Audit log:** every change made through the dashboard is appended with the admin's address.
+
+**What admins cannot do.** The trust boundaries of §4.3 apply to admins as well. They cannot read messages (the server has only ciphertext), and the dashboard deliberately has no action to edit or delete messages: every message is signed, hash-chained and anchored, so such a change would be detected by the apps. They also cannot take away a username or funds, because those live on the chain. Admin power is limited to *availability on this server* (bans, pausing, group membership) and to the admin key's on-chain rights (minting, anchoring).
 
 ---
 
@@ -396,6 +413,7 @@ Both the backend (C#) and mobile (TypeScript) implementations follow this specif
 - **AnchorBatch:** root, message range, tx hash, block number.
 - **ChainSyncState:** last processed block per contract (for indexer resume).
 - **GasDrip:** address, tx hash, timestamp (one per address).
+- **Admin dashboard (§4.4):** AdminAccount (admins added by root admins), BannedUser, AdminFunding (asset, amount, tx hash, admin), AdminAuditEntry (append-only), SystemSetting (runtime settings).
 
 ---
 
@@ -430,6 +448,7 @@ Both the backend (C#) and mobile (TypeScript) implementations follow this specif
 - No forward secrecy (no double ratchet as in Signal); one static key pair per user.
 - Metadata (who talks to whom, when) is visible to the server.
 - Admin key is a single point of control for minting and anchoring. It cannot forge messages, but it can delay or skip anchoring.
+- Dashboard admins can mint CHAT without limit over time (only each single action is capped), ban users and pause messaging; all of it is recorded in the audit log, but nothing on-chain restricts it.
 - The server can withhold the most recent messages of a sender; this is only detected once a later message from the same sender arrives.
 - Per-member key wrapping limits groups to about 20 members.
 - A group invite link is a bearer secret: anyone who obtains it can join and read new messages (existing members see the join).

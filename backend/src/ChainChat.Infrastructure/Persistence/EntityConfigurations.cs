@@ -156,3 +156,63 @@ internal sealed class MessageReactionConfiguration : IEntityTypeConfiguration<Me
         b.HasOne<Message>().WithMany().HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+internal sealed class AdminAccountConfiguration : IEntityTypeConfiguration<AdminAccount>
+{
+    public void Configure(EntityTypeBuilder<AdminAccount> b)
+    {
+        b.ToTable("admins");
+        b.HasKey(a => a.Address);
+        b.Property(a => a.Address).HasMaxLength(Len.Address);
+        b.Property(a => a.AddedBy).HasMaxLength(Len.Address);
+        b.Property(a => a.Note).HasMaxLength(200);
+    }
+}
+
+internal sealed class BannedUserConfiguration : IEntityTypeConfiguration<BannedUser>
+{
+    public void Configure(EntityTypeBuilder<BannedUser> b)
+    {
+        b.HasKey(u => u.Address);
+        b.Property(u => u.Address).HasMaxLength(Len.Address);
+        b.Property(u => u.BannedBy).HasMaxLength(Len.Address);
+        b.Property(u => u.Reason).HasMaxLength(200);
+    }
+}
+
+internal sealed class AdminFundingConfiguration : IEntityTypeConfiguration<AdminFunding>
+{
+    public void Configure(EntityTypeBuilder<AdminFunding> b)
+    {
+        b.HasKey(f => f.Id);
+        b.Property(f => f.Address).HasMaxLength(Len.Address);
+        b.Property(f => f.Admin).HasMaxLength(Len.Address);
+        b.Property(f => f.TxHash).HasMaxLength(Len.Hash);
+        b.Property(f => f.Amount).HasColumnType("numeric(78,0)");
+        b.HasIndex(f => f.Address);
+    }
+}
+
+internal sealed class AdminAuditEntryConfiguration : IEntityTypeConfiguration<AdminAuditEntry>
+{
+    public void Configure(EntityTypeBuilder<AdminAuditEntry> b)
+    {
+        b.ToTable("admin_audit_log");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Admin).HasMaxLength(Len.Address);
+        b.Property(e => e.Action).HasMaxLength(64);
+        b.Property(e => e.Target).HasMaxLength(128);
+        b.Property(e => e.Details).HasMaxLength(500);
+    }
+}
+
+internal sealed class SystemSettingConfiguration : IEntityTypeConfiguration<SystemSetting>
+{
+    public void Configure(EntityTypeBuilder<SystemSetting> b)
+    {
+        b.HasKey(s => s.Key);
+        b.Property(s => s.Key).HasMaxLength(64);
+        b.Property(s => s.Value).HasMaxLength(200);
+        b.Property(s => s.UpdatedBy).HasMaxLength(Len.Address);
+    }
+}

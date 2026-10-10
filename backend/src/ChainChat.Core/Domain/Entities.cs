@@ -178,3 +178,62 @@ public class GasDrip
     public BigInteger AmountWei { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+// ---- Admin dashboard (SDD §4.4) ----
+
+/// <summary>A wallet allowed into the admin dashboard, added by another admin. Root admins come from configuration.</summary>
+public class AdminAccount
+{
+    public required string Address { get; set; }
+    public string? Note { get; set; }
+    public required string AddedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>A wallet blocked from signing in, sending messages and joining groups. Its on-chain identity is untouched.</summary>
+public class BannedUser
+{
+    public required string Address { get; set; }
+    public string? Reason { get; set; }
+    public required string BannedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public enum FundingAsset
+{
+    Eth,
+    Chat,
+}
+
+/// <summary>Test ETH sent, or CHAT minted, to an address by an admin from the dashboard.</summary>
+public class AdminFunding
+{
+    public long Id { get; set; }
+    public required string Address { get; set; }
+    public FundingAsset Asset { get; set; }
+    /// <summary>Amount in the smallest unit (wei).</summary>
+    public BigInteger Amount { get; set; }
+    public required string TxHash { get; set; }
+    public required string Admin { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>What an admin changed, and when (append-only).</summary>
+public class AdminAuditEntry
+{
+    public long Id { get; set; }
+    public required string Admin { get; set; }
+    public required string Action { get; set; }
+    public string? Target { get; set; }
+    public string? Details { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>A runtime setting changed from the dashboard; missing keys use their default.</summary>
+public class SystemSetting
+{
+    public required string Key { get; set; }
+    public required string Value { get; set; }
+    public required string UpdatedBy { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
