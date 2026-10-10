@@ -28,6 +28,7 @@ try
     builder.Services.AddWalletAuthentication(builder.Configuration);
     builder.Services.AddSignalR();
     builder.Services.AddSingleton<IUserIdProvider, WalletUserIdProvider>();
+    builder.Services.AddSingleton<PresenceTracker>();
     builder.Services.AddSingleton<ChainChat.Infrastructure.Payments.IPaymentNotifier, HubPaymentNotifier>();
 
     var app = builder.Build();
@@ -38,6 +39,7 @@ try
     }
 
     app.UseExceptionHandler();
+    app.UseGroupErrors();
     app.UseStatusCodePages();
     app.UseSerilogRequestLogging();
     app.UseAuthentication();
@@ -57,6 +59,7 @@ try
     app.MapUserEndpoints();
     app.MapConversationEndpoints();
     app.MapAnchoringEndpoints();
+    app.MapGroupEndpoints();
     app.MapHub<ChatHub>(ChatHub.Path);
 
     await app.RunAsync();

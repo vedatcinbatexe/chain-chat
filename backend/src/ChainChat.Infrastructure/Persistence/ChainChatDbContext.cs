@@ -10,6 +10,7 @@ public class ChainChatDbContext(DbContextOptions<ChainChatDbContext> options) : 
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<Participant> Participants => Set<Participant>();
     public DbSet<Message> Messages => Set<Message>();
+    public DbSet<MessageReaction> MessageReactions => Set<MessageReaction>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<AnchorBatch> AnchorBatches => Set<AnchorBatch>();
     public DbSet<ChainSyncState> ChainSyncStates => Set<ChainSyncState>();

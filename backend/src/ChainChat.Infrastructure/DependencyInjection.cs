@@ -57,6 +57,8 @@ public static class DependencyInjection
         services.AddHostedService(sp => sp.GetRequiredService<AnchoringJob>());
 
         services.AddScoped<MessageService>();
+        services.AddScoped<GroupService>();
+        services.AddScoped<ReactionService>();
 
         services.AddOptions<PaymentOptions>()
             .Bind(configuration.GetSection(PaymentOptions.SectionName))

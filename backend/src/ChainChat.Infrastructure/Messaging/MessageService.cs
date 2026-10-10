@@ -9,10 +9,11 @@ using Microsoft.Extensions.Logging;
 namespace ChainChat.Infrastructure.Messaging;
 
 /// <summary>A message as sent by the app: hex for bytes, decimal strings for uint64 (SPEC.md §1).</summary>
+/// <param name="Recipient">The other participant of a 1:1 conversation; null for a group message.</param>
 /// <param name="PaymentTxHash">For a payment message: the ChatToken transfer transaction it claims (SDD §6.4).</param>
 public sealed record SendMessageCommand(
     string ConversationId,
-    string Recipient,
+    string? Recipient,
     string Seq,
     string PrevHash,
     string Ciphertext,
@@ -20,8 +21,8 @@ public sealed record SendMessageCommand(
     string Signature,
     string? PaymentTxHash = null);
 
-/// <summary>A stored message, its payment claim (if any), and whether it was newly created.</summary>
-public sealed record AcceptedMessage(Message Message, Payment? Payment, bool Created);
+/// <summary>A stored message, its payment claim (if any), whether it was newly created, and who should receive it.</summary>
+public sealed record AcceptedMessage(Message Message, Payment? Payment, bool Created, IReadOnlyList<string> Audience);
 
 /// <summary>Why a message was refused; the code is sent back to the app.</summary>
 public sealed class MessageRejectedException(string code) : Exception($"Message rejected: {code}")
@@ -32,7 +33,7 @@ public sealed class MessageRejectedException(string code) : Exception($"Message 
 public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILogger<MessageService> logger)
 {
     /// <summary>
-    /// Validates and stores a 1:1 message from <paramref name="sender"/> (the signed-in wallet).
+    /// Validates and stores a 1:1 or group message from <paramref name="sender"/> (the signed-in wallet).
     /// Idempotent: re-sending an already stored message returns it with <c>Created = false</c>.
     /// A payment message also records a pending payment; each transaction can be claimed only once.
     /// </summary>
@@ -42,7 +43,8 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
         var paymentTxHash = ParsePaymentTxHash(command.PaymentTxHash);
         var conversationId = Hex.FromBytes(incoming.ConversationId);
         var senderAddress = EthAddress.Normalize(incoming.Sender);
-        var recipientAddress = EthAddress.Normalize(incoming.Recipient);
+        var recipientAddress = incoming.Recipient is null ? null : EthAddress.Normalize(incoming.Recipient);
+        var isGroup = recipientAddress is null;
 
         // A retry whose acknowledgement was lost: return the stored copy instead of failing the chain check.
         var candidateHash = TryHash(incoming);
@@ -52,13 +54,27 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
             if (existing is not null && existing.Sender == senderAddress)
             {
                 var existingPayment = await db.Payments.AsNoTracking().FirstOrDefaultAsync(p => p.MessageId == existing.Id, ct);
-                return new AcceptedMessage(existing, existingPayment, false);
+                return new AcceptedMessage(existing, existingPayment, false, []);
             }
         }
 
-        // Both sides must be registered on-chain (mirrored by the indexer), so the recipient has a public key.
-        var registered = await db.Users.Where(u => u.Address == senderAddress || u.Address == recipientAddress).CountAsync(ct);
-        if (registered < 2) throw new MessageRejectedException("NotRegistered");
+        List<string> audience;
+        if (isGroup)
+        {
+            // Group messages: only active members may post, and every active member receives it.
+            if (paymentTxHash is not null) throw new MessageRejectedException("PaymentsNotSupportedInGroups");
+            var conversation = await db.Conversations.AsNoTracking().FirstOrDefaultAsync(c => c.Id == conversationId, ct);
+            if (conversation?.Type != ConversationType.Group) throw new MessageRejectedException("ConversationNotFound");
+            audience = await db.Participants.Where(p => p.ConversationId == conversationId && p.RemovedAt == null).Select(p => p.Address).ToListAsync(ct);
+            if (!audience.Contains(senderAddress)) throw new MessageRejectedException("NotAMember");
+        }
+        else
+        {
+            // Both sides must be registered on-chain (mirrored by the indexer), so the recipient has a public key.
+            var registered = await db.Users.Where(u => u.Address == senderAddress || u.Address == recipientAddress).CountAsync(ct);
+            if (registered < 2) throw new MessageRejectedException("NotRegistered");
+            audience = [senderAddress, recipientAddress!];
+        }
 
         if (paymentTxHash is not null && await db.Payments.AnyAsync(p => p.TxHash == paymentTxHash, ct))
         {
@@ -80,7 +96,7 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
             throw new MessageRejectedException(rejection.ToString());
         }
 
-        if (await db.Conversations.FindAsync([conversationId], ct) is null)
+        if (!isGroup && await db.Conversations.FindAsync([conversationId], ct) is null)
         {
             var now = time.GetUtcNow();
             db.Conversations.Add(new Conversation
@@ -91,7 +107,7 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
                 Participants =
                 [
                     new Participant { ConversationId = conversationId, Address = senderAddress, JoinedAt = now },
-                    new Participant { ConversationId = conversationId, Address = recipientAddress, JoinedAt = now },
+                    new Participant { ConversationId = conversationId, Address = recipientAddress!, JoinedAt = now },
                 ],
             });
         }
@@ -125,7 +141,7 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
                 {
                     TxHash = paymentTxHash,
                     From = senderAddress,
-                    To = recipientAddress,
+                    To = recipientAddress!,
                     Status = PaymentStatus.Pending,
                     MessageId = message.Id,
                     CreatedAt = time.GetUtcNow(),
@@ -142,7 +158,7 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
             throw new MessageRejectedException(paymentTxHash is null ? "SeqConflict" : "SeqConflictOrPaymentTxAlreadyClaimed");
         }
 
-        return new AcceptedMessage(message, payment, true);
+        return new AcceptedMessage(message, payment, true, audience);
     }
 
     private static string? ParsePaymentTxHash(string? txHash)
@@ -166,7 +182,7 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, ILo
             return new IncomingMessage(
                 Hex.ToBytes(c.ConversationId),
                 EthAddress.ToChecksum(sender),
-                EthAddress.ToChecksum(c.Recipient),
+                c.Recipient is null ? null : EthAddress.ToChecksum(c.Recipient),
                 ulong.Parse(c.Seq, NumberStyles.None, CultureInfo.InvariantCulture),
                 Hex.ToBytes(c.PrevHash),
                 Hex.ToBytes(c.Ciphertext),

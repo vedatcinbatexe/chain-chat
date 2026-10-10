@@ -91,9 +91,22 @@ public class IncomingMessageValidatorTests
             IncomingMessageValidator.Validate(message with { Ciphertext = new byte[IncomingMessageValidator.MaxCiphertextBytes + 1] }, null).Rejection);
     }
 
-    private static IncomingMessage Signed(string privateKey, string sender, string recipient, ulong seq, byte[] prevHash)
+    [Fact]
+    public void Group_message_is_validated_by_signature_and_chain_without_a_recipient()
     {
-        var unsigned = new IncomingMessage(AliceBob, sender, recipient, seq, prevHash,
+        var groupId = Keccak.Hash("chainchat:test:group"u8.ToArray());
+        var first = Signed(AliceKey, Alice, recipient: null, seq: 1, prevHash: MessageHasher.ZeroHash, conversationId: groupId);
+        var forged = Signed(BobKey, Alice, recipient: null, seq: 1, prevHash: MessageHasher.ZeroHash, conversationId: groupId);
+        var gap = Signed(AliceKey, Alice, recipient: null, seq: 3, prevHash: HashOf(first), conversationId: groupId);
+
+        Assert.Equal(MessageRejection.None, IncomingMessageValidator.Validate(first, null).Rejection);
+        Assert.Equal(MessageRejection.InvalidSignature, IncomingMessageValidator.Validate(forged, null).Rejection);
+        Assert.Equal(MessageRejection.SeqGap, IncomingMessageValidator.Validate(gap, (1, HashOf(first))).Rejection);
+    }
+
+    private static IncomingMessage Signed(string privateKey, string sender, string? recipient, ulong seq, byte[] prevHash, byte[]? conversationId = null)
+    {
+        var unsigned = new IncomingMessage(conversationId ?? AliceBob, sender, recipient, seq, prevHash,
             Ciphertext: [.. "ciphertext"u8, (byte)seq], ClientTimestamp: 1767225600000 + seq, Signature: []);
 
         // EIP-191 over the 32-byte message hash — the same digest as MessageSignature.SigningDigest.

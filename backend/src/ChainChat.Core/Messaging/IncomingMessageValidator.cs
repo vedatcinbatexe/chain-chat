@@ -2,11 +2,12 @@ using ChainChat.Core.Crypto;
 
 namespace ChainChat.Core.Messaging;
 
-/// <summary>A 1:1 message as received from the sender's device (SDD §6.3).</summary>
+/// <summary>A message as received from the sender's device (SDD §6.3).</summary>
+/// <param name="Recipient">The other participant of a 1:1 conversation; null for a group message.</param>
 public sealed record IncomingMessage(
     byte[] ConversationId,
     string Sender,
-    string Recipient,
+    string? Recipient,
     ulong Seq,
     byte[] PrevHash,
     byte[] Ciphertext,
@@ -31,21 +32,28 @@ public enum MessageRejection
 /// </summary>
 public static class IncomingMessageValidator
 {
-    /// <summary>Ciphertext limit: text messages only in the MVP (nonce + box of a few thousand characters).</summary>
-    public const int MaxCiphertextBytes = 16 * 1024;
+    /// <summary>
+    /// Ciphertext limit: text messages only. 64 KB fits a group message (the text encrypted once, plus one
+    /// 72-byte key wrapper per member) as well as any 1:1 message.
+    /// </summary>
+    public const int MaxCiphertextBytes = 64 * 1024;
 
     /// <param name="previous">The sender's last accepted message in this conversation, or null if this is their first.</param>
+    /// <remarks>For group messages (no recipient), the caller must have checked that the sender is a member.</remarks>
     /// <returns>The rejection reason (None if accepted) and, when accepted, the message hash.</returns>
     public static (MessageRejection Rejection, byte[]? MessageHash) Validate(IncomingMessage message, (ulong Seq, byte[] MessageHash)? previous)
     {
         if (message.Ciphertext.Length is 0 or > MaxCiphertextBytes) return (MessageRejection.Malformed, null);
         if (message.ConversationId.Length != 32 || message.PrevHash.Length != 32) return (MessageRejection.Malformed, null);
-        if (EthAddress.AreEqual(message.Sender, message.Recipient)) return (MessageRejection.SelfMessage, null);
-
-        // A 1:1 conversation id is derived from the two addresses (SPEC.md §2), so it cannot be moved to another chat.
-        if (!message.ConversationId.AsSpan().SequenceEqual(ConversationId.ForDirect(message.Sender, message.Recipient)))
+        if (message.Recipient is not null)
         {
-            return (MessageRejection.ConversationMismatch, null);
+            if (EthAddress.AreEqual(message.Sender, message.Recipient)) return (MessageRejection.SelfMessage, null);
+
+            // A 1:1 conversation id is derived from the two addresses (SPEC.md §2), so it cannot be moved to another chat.
+            if (!message.ConversationId.AsSpan().SequenceEqual(ConversationId.ForDirect(message.Sender, message.Recipient)))
+            {
+                return (MessageRejection.ConversationMismatch, null);
+            }
         }
 
         // The sender's hash chain (SPEC.md §4): nothing deleted, reordered or replayed.

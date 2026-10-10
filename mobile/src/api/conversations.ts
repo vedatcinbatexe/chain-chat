@@ -18,6 +18,13 @@ export interface MessageDto {
   serverReceivedAt: string;
   /** The server's view of a payment message (apps also check the receipt on-chain themselves). */
   payment?: PaymentDto | null;
+  /** Emoji reactions (metadata visible to the server), grouped by emoji. */
+  reactions?: ReactionSummary[];
+}
+
+export interface ReactionSummary {
+  emoji: string;
+  addresses: Address[];
 }
 
 export interface PaymentDto {
@@ -31,7 +38,11 @@ export interface PaymentDto {
 
 export interface ConversationSummary {
   id: Hex;
-  peer: { address: Address; username: string };
+  type: 'Direct' | 'Group';
+  /** Set for 1:1 conversations. */
+  peer: { address: Address; username: string } | null;
+  /** Set for groups. */
+  group: { name: string; memberCount: number } | null;
   lastMessage: MessageDto | null;
 }
 
