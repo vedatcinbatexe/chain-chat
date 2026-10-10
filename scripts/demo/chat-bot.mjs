@@ -16,18 +16,46 @@ async function signIn() {
   const message = [`${n.domain} wants you to sign in with your Ethereum account:`, account.address, '', n.statement, '', `URI: ${n.uri}`, 'Version: 1', `Chain ID: ${n.chainId}`, `Nonce: ${n.nonce}`, `Issued At: ${now.toISOString()}`, `Expiration Time: ${new Date(now.getTime() + 300000).toISOString()}`].join('\n');
   const r = await fetch(`${API}/api/v1/auth/verify`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message, signature: await account.signMessage({ message }) }) });
   if (!r.ok) throw new Error(`sign-in failed: ${r.status} ${await r.text()}`);
-  return (await r.json()).token;
+  const session = await r.json();
+  return { token: session.token, expiresAt: Date.parse(session.expiresAt) };
 }
 
-const token = await signIn();
+// The server's token lasts an hour. The bot signs in again shortly before it expires — and whenever it has to
+// reconnect — so it keeps working for as long as it runs.
+let session = null;
+let signingIn = null;
+async function getToken() {
+  if (session && session.expiresAt - 60_000 > Date.now()) return session.token;
+  signingIn ??= signIn()
+    .then((fresh) => {
+      if (session) log('signed in again (the previous session expired)');
+      session = fresh;
+    })
+    .finally(() => {
+      signingIn = null;
+    });
+  await signingIn;
+  return session.token;
+}
+const authHeaders = async () => ({ authorization: `Bearer ${await getToken()}`, 'content-type': 'application/json' });
+
+// The first sign-in is retried, so the bot can be started before the API is up.
+for (;;) {
+  try {
+    await getToken();
+    break;
+  } catch (error) {
+    log(`could not sign in (${error.message.split('\n')[0]}) — trying again in 3 s`);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+  }
+}
 log('signed in as', account.address);
-const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Optional: join a group by its invite link/code.
 const invite = process.argv[3]?.trim().match(/([A-Za-z0-9]{16,32})\/?$/)?.[1];
 if (invite) {
-  const r = await fetch(`${API}/api/v1/groups/join`, { method: 'POST', headers: auth, body: JSON.stringify({ inviteCode: invite }) });
+  const r = await fetch(`${API}/api/v1/groups/join`, { method: 'POST', headers: await authHeaders(), body: JSON.stringify({ inviteCode: invite }) });
   if (!r.ok) throw new Error(`join failed: ${r.status} ${await r.text()}`);
   const group = await r.json();
   log(`joined group "${group.name}" (${group.members.length} members)`);
@@ -35,7 +63,7 @@ if (invite) {
 
 /** The group for a conversation id, or null for a 1:1 chat. Always fresh, so new members get the next message. */
 async function groupOf(conversationId) {
-  const r = await fetch(`${API}/api/v1/groups/${conversationId}`, { headers: auth });
+  const r = await fetch(`${API}/api/v1/groups/${conversationId}`, { headers: await authHeaders() });
   return r.ok ? r.json() : null;
 }
 
@@ -78,7 +106,7 @@ async function encryptGroup(text, group) {
 const heads = new Map(); // conversationId → { seq, messageHash } of my last message
 async function myHead(conversationId) {
   if (heads.has(conversationId)) return heads.get(conversationId);
-  const r = await fetch(`${API}/api/v1/conversations/${conversationId}/messages?limit=200`, { headers: { authorization: `Bearer ${token}` } });
+  const r = await fetch(`${API}/api/v1/conversations/${conversationId}/messages?limit=200`, { headers: await authHeaders() });
   const mine = r.ok ? (await r.json()).filter((m) => m.sender.toLowerCase() === account.address.toLowerCase()) : [];
   const last = mine.sort((a, b) => Number(BigInt(a.seq) - BigInt(b.seq))).at(-1);
   const head = last ? { seq: BigInt(last.seq), messageHash: last.messageHash } : { seq: 0n, messageHash: `0x${'00'.repeat(32)}` };
@@ -86,7 +114,7 @@ async function myHead(conversationId) {
   return head;
 }
 
-const connection = new signalR.HubConnectionBuilder().withUrl(`${API}/hubs/chat`, { accessTokenFactory: () => token }).withAutomaticReconnect({ nextRetryDelayInMilliseconds: () => 2000 }).configureLogging(signalR.LogLevel.Warning).build();
+const connection = new signalR.HubConnectionBuilder().withUrl(`${API}/hubs/chat`, { accessTokenFactory: getToken }).withAutomaticReconnect({ nextRetryDelayInMilliseconds: () => 2000 }).configureLogging(signalR.LogLevel.Warning).build();
 
 // Live events the bot does not act on (registered so SignalR does not warn about them).
 for (const event of ['PaymentUpdated', 'TypingChanged', 'PresenceChanged', 'ReactionChanged', 'ConversationUpdated']) connection.on(event, () => {});
@@ -167,5 +195,17 @@ connection.on('MessageReceived', async (m) => {
   }
 });
 
-await connection.start();
+connection.onreconnecting(() => log('connection lost — reconnecting…'));
+connection.onreconnected(() => log('reconnected'));
+
+// The first connection is retried too, so the bot can be started before the API is up.
+for (;;) {
+  try {
+    await connection.start();
+    break;
+  } catch (error) {
+    log(`could not connect (${error.message.split('\n')[0]}) — trying again in 3 s`);
+    await sleep(3000);
+  }
+}
 log('connected to /hubs/chat — waiting for messages');
