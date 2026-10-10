@@ -43,8 +43,10 @@ public class Group
     public required string Name { get; set; }
     /// <summary>Secret code in the invite link (chainchat://join/{code}); anyone with the link can join.</summary>
     public required string InviteCode { get; set; }
-    /// <summary>Optional ERC-721 contract whose badge is required to join (NFT gating, Phase 12).</summary>
+    /// <summary>Optional ERC-721 contract (lowercase address) whose badge is required to join and stay a member (SDD §6.5).</summary>
     public string? RequiredBadgeContract { get; set; }
+    /// <summary>Badge type ids (in <see cref="RequiredBadgeContract"/>) a member must hold — all of them. Empty for open groups.</summary>
+    public int[] RequiredBadgeTypes { get; set; } = [];
     public int MaxMembers { get; set; } = 20;
     public required string CreatedBy { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -203,9 +205,11 @@ public enum FundingAsset
 {
     Eth,
     Chat,
+    /// <summary>A ClassBadge (ERC-721) minted to the address; the amount is 1.</summary>
+    Badge,
 }
 
-/// <summary>Test ETH sent, or CHAT minted, to an address by an admin from the dashboard.</summary>
+/// <summary>Test ETH sent, or CHAT or a ClassBadge minted, to an address by an admin from the dashboard.</summary>
 public class AdminFunding
 {
     public long Id { get; set; }

@@ -14,6 +14,7 @@ import {Anchor} from "../src/Anchor.sol";
 ///      BADGE_URI             ClassBadge metadata URI
 ///      CHAT_INITIAL_SUPPLY   ChatToken supply minted to the deployer (wei)
 ///      FORCE_DEPLOY          "true" to redeploy even if the existing deployment is live
+///      An existing deployment whose ClassBadge predates badge types gets only that contract replaced.
 contract Deploy is Script {
     string internal constant DEPLOYMENTS_DIR = "../shared/deployments/";
 
@@ -23,7 +24,12 @@ contract Deploy is Script {
         string memory path = string.concat(DEPLOYMENTS_DIR, network, ".json");
 
         if (!vm.envOr("FORCE_DEPLOY", false) && _isLive(path)) {
-            console.log("Contracts in %s are already deployed on this chain - skipping (set FORCE_DEPLOY=true to redeploy)", path);
+            if (_badgeHasTypes(path)) {
+                console.log("Contracts in %s are already deployed on this chain - skipping (set FORCE_DEPLOY=true to redeploy)", path);
+            } else {
+                // An older ClassBadge without badge types: replace only that contract, so users and messages stay.
+                _redeployBadge(deployerKey, path);
+            }
             return;
         }
 
@@ -33,7 +39,7 @@ contract Deploy is Script {
         vm.startBroadcast(deployerKey);
         Registry registry = new Registry();
         ChatToken token = new ChatToken(deployer, vm.envOr("CHAT_INITIAL_SUPPLY", uint256(1_000_000 ether)));
-        ClassBadge badge = new ClassBadge(deployer, vm.envOr("BADGE_URI", string("ipfs://chainchat-class-badge")));
+        ClassBadge badge = _deployBadge(deployer);
         Anchor anchor = new Anchor(deployer);
         vm.stopBroadcast();
 
@@ -53,6 +59,32 @@ contract Deploy is Script {
         console.log("  ChatToken  %s", address(token));
         console.log("  ClassBadge %s", address(badge));
         console.log("  Anchor     %s", address(anchor));
+    }
+
+    /// @dev Deploys ClassBadge with the default badge types. Must be called while broadcasting as the deployer.
+    function _deployBadge(address deployer) internal returns (ClassBadge badge) {
+        badge = new ClassBadge(deployer, vm.envOr("BADGE_URI", string("ipfs://chainchat-class-badge")));
+        badge.createBadgeType("Student");
+        badge.createBadgeType("Assistant");
+        badge.createBadgeType("Instructor");
+    }
+
+    /// @dev Deploys a new ClassBadge and replaces only its entry in the deployment file.
+    function _redeployBadge(uint256 deployerKey, string memory path) internal {
+        uint256 deployBlock = block.number;
+        vm.startBroadcast(deployerKey);
+        ClassBadge badge = _deployBadge(vm.addr(deployerKey));
+        vm.stopBroadcast();
+
+        vm.writeJson(_entry("ClassBadgeUpgrade", address(badge), deployBlock), path, ".contracts.ClassBadge");
+        console.log("ClassBadge upgraded (badge types): %s, written to %s", address(badge), path);
+    }
+
+    /// @dev True if the deployed ClassBadge supports badge types (it answers badgeTypeCount()).
+    function _badgeHasTypes(string memory path) internal view returns (bool) {
+        address badge = vm.parseJsonAddress(vm.readFile(path), ".contracts.ClassBadge.address");
+        (bool ok, bytes memory data) = badge.staticcall(abi.encodeWithSignature("badgeTypeCount()"));
+        return ok && data.length == 32;
     }
 
     /// @dev One contract entry: { "address": ..., "deployBlock": ... }. deployBlock is at or before the real block.

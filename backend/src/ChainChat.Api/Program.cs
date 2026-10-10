@@ -31,6 +31,7 @@ try
     builder.Services.AddSingleton<IUserIdProvider, WalletUserIdProvider>();
     builder.Services.AddSingleton<PresenceTracker>();
     builder.Services.AddSingleton<ChainChat.Infrastructure.Payments.IPaymentNotifier, HubPaymentNotifier>();
+    builder.Services.AddSingleton<ChainChat.Infrastructure.Indexing.IGroupNotifier, HubGroupNotifier>();
 
     var app = builder.Build();
 

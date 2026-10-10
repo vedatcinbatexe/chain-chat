@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { Card, DataTable, Input, PageHeader, Pagination, UserCell, type Column } from '@/components/ui';
+import { Badge, Card, DataTable, Input, PageHeader, Pagination, UserCell, type Column } from '@/components/ui';
 import { api, query } from '@/lib/api';
 import { formatDate, formatNumber } from '@/lib/format';
 import type { GroupRow, Paged } from '@/lib/types';
@@ -16,6 +16,7 @@ const COLUMNS: Column<GroupRow>[] = [
       </Link>
     ),
   },
+  { header: 'Access', cell: (g) => (g.requiresBadge ? <Badge tone="indigo">{g.requiredBadgeTypes.length === 1 ? '1 badge required' : `${g.requiredBadgeTypes.length} badges required`}</Badge> : <Badge>Invite link</Badge>) },
   { header: 'Created by', cell: (g) => <UserCell address={g.createdBy} username={g.creatorUsername} /> },
   { header: 'Members', align: 'right', cell: (g) => `${g.members} / ${g.maxMembers}` },
   { header: 'Messages', align: 'right', cell: (g) => formatNumber(g.messages) },

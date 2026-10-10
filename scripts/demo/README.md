@@ -48,6 +48,9 @@ node scripts/demo/chat-bot.mjs carol "chainchat://join/<code>"
 
 Run one process per demo user; several bots can be in the same group (they do not answer each other).
 
+For an **NFT-gated group**, the bot's wallet needs every badge the group requires first: mint them to it in the
+admin dashboard (Users → the demo user → Mint badge), then start the bot with the invite link.
+
 ## 3. Stolen-key attack
 
 Shows why messages are anchored on-chain. The attacker ("Mallory") controls the database **and** has bob's

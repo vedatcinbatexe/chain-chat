@@ -56,6 +56,25 @@ export function GroupInfoSheet({ group, me, visible, onDismiss, onOpenProfile, o
             </View>
           </View>
 
+          {group.requiredBadgeContract && (
+            <View style={[styles.gate, { backgroundColor: theme.colors.secondaryContainer }]}>
+              <Text variant="titleSmall" style={{ color: theme.colors.onSecondaryContainer }}>
+                🎖 NFT-gated group
+              </Text>
+              <View style={styles.badgeChips}>
+                {group.requiredBadges.map((badge) => (
+                  <Chip key={badge.id} compact icon="certificate-outline">
+                    {badge.name}
+                  </Chip>
+                ))}
+              </View>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSecondaryContainer }}>
+                Only wallets holding {group.requiredBadges.length > 1 ? 'all of these badges' : 'this badge'} (ERC-721) can join. Every app checks them on the blockchain
+                before encrypting to a member, and a member who transfers a required badge away is removed.
+              </Text>
+            </View>
+          )}
+
           <View style={[styles.invite, { backgroundColor: theme.colors.primaryContainer }]}>
             <Text variant="titleSmall" style={{ color: theme.colors.onPrimaryContainer }}>
               Invite link
@@ -64,7 +83,7 @@ export function GroupInfoSheet({ group, me, visible, onDismiss, onOpenProfile, o
               {link}
             </Text>
             <Text variant="labelSmall" style={{ color: theme.colors.onPrimaryContainer }}>
-              Anyone with this link can join and read new messages.
+              {group.requiredBadgeContract ? 'Anyone with this link and the required badges can join and read new messages.' : 'Anyone with this link can join and read new messages.'}
             </Text>
             <View style={styles.inviteActions}>
               <Button mode="contained" icon="share-variant" onPress={share} style={styles.flex}>
@@ -121,6 +140,8 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, minWidth: 0, gap: 2 },
   bold: { fontWeight: '700' },
   invite: { borderRadius: 16, padding: 14, gap: 6 },
+  gate: { borderRadius: 16, padding: 14, gap: 8 },
+  badgeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   inviteActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   flex: { flex: 1 },
   mono: { fontFamily: 'Menlo' },

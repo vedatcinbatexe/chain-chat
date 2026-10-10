@@ -18,6 +18,7 @@ import { Composer } from '@/chat/ui/Composer';
 import { ReactionPicker } from '@/chat/ui/ReactionPicker';
 import { ReactionsSheet } from '@/chat/ui/ReactionsSheet';
 import { useMemberKeys } from '@/chat/useMemberKeys';
+import { useBadgeHolders } from '@/chain/classBadge';
 import { verifyMessagesWith, type VerifiedMessage } from '@/chat/verify';
 import { VerifySheet } from '@/chat/VerifySheet';
 import { shorten } from '@/components/CopyableValue';
@@ -59,6 +60,10 @@ export default function GroupChatScreen() {
   const senderAddresses = messages.data?.map((m) => m.sender) ?? [];
   const { keys, ready: keysReady } = useMemberKeys([...memberAddresses, ...senderAddresses]);
 
+  // NFT-gated group: each member's badges are checked on-chain before anything is encrypted to them.
+  const badgeGate = group.data?.requiredBadgeContract ?? null;
+  const badges = useBadgeHolders(badgeGate, group.data?.requiredBadges.map((b) => b.id) ?? [], memberAddresses);
+
   const memberList = memberAddresses.join(',');
   useEffect(() => {
     if (connected && memberList) loadPresence(memberList.split(','));
@@ -88,12 +93,14 @@ export default function GroupChatScreen() {
     return username ? `@${username}` : shorten(address, 6, 4);
   };
 
-  // Encrypt to every current member whose key is on-chain (this always includes the sender).
+  // Encrypt to every current member whose key is on-chain (this always includes the sender) — and, in a gated
+  // group, only to members who hold every required badge right now, whatever the server's member list says.
   const recipients = info.members.flatMap((m) => {
     const key = keys[m.address.toLowerCase()];
+    if (badgeGate && !badges.holders.has(m.address.toLowerCase())) return [];
     return key ? [{ address: m.address, encryptionKey: key.encryptionKey }] : [];
   });
-  const canSend = connected && keysReady && recipients.some((r) => r.address.toLowerCase() === me.toLowerCase());
+  const canSend = connected && keysReady && badges.ready && recipients.some((r) => r.address.toLowerCase() === me.toLowerCase());
 
   const send = (text: string, key = nextPendingKey()) => {
     setPending((previous) => [...previous.filter((p) => p.key !== key), { key, text, failed: false }]);
@@ -127,7 +134,7 @@ export default function GroupChatScreen() {
   const readable = (verified.data ?? []).filter((m) => m.text !== null || isGroupMessageFor(m.dto.ciphertext, me));
   const beforeJoining = (verified.data?.length ?? 0) - readable.length;
   const rows = buildRows(readable, pending);
-  const subtitle = describeTyping(typing.map(nameOf)) ?? `${info.members.length} members · ${onlineCount} online`;
+  const subtitle = describeTyping(typing.map(nameOf)) ?? `${badgeGate ? '🎖 ' : ''}${info.members.length} members · ${onlineCount} online`;
 
   return (
     <KeyboardAvoidingView

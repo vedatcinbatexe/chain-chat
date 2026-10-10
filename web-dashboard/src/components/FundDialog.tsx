@@ -20,7 +20,7 @@ export function FundDialog({ open, onClose, address: fixedAddress }: { open: boo
   const fund = useMutation({
     mutationFn: () => post<FundingRow>('/funding', { address: target, asset, amount: Number(amount) }),
     onSuccess: (funding) => {
-      toast(`Sent ${formatAmount(funding.amount)} ${funding.asset} — the balance is updated on-chain.`);
+      toast(`Sent ${formatAmount(funding.amount)} ${asset} — the balance is updated on-chain.`);
       queryClient.invalidateQueries();
       onClose();
     },

@@ -13,6 +13,11 @@ const MESSAGES: Record<string, string> = {
   InviteNotFound: 'This invite link is not valid anymore.',
   InvalidName: 'Enter a group name of up to 64 characters.',
   NotRegistered: 'Register a username first.',
+  // NFT-gated groups
+  BadgeRequired: 'Your wallet does not hold every badge this group requires. Ask an administrator to mint the missing badge to your wallet.',
+  UnknownBadgeType: 'One of the selected badges does not exist anymore.',
+  TooManyBadges: 'A group can require at most 5 badges.',
+  BadgeNotAvailable: 'The ClassBadge contract is not deployed on this network.',
   // Messages
   PaymentTxAlreadyClaimed: 'This payment was already sent in a message.',
   PaymentsNotSupportedInGroups: 'Payments can only be sent in a 1:1 chat.',

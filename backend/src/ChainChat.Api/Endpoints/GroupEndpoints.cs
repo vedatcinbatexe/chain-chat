@@ -9,7 +9,8 @@ namespace ChainChat.Api.Endpoints;
 /// <summary>Group conversations: create, share an invite link, join, leave (SDD §6.5).</summary>
 public static class GroupEndpoints
 {
-    public sealed record CreateGroupRequest(string Name);
+    /// <param name="RequiredBadgeTypes">Badge type ids every member must hold (NFT-gated group); empty or missing for an open group.</param>
+    public sealed record CreateGroupRequest(string Name, int[]? RequiredBadgeTypes = null);
 
     public sealed record JoinGroupRequest(string InviteCode);
 
@@ -18,7 +19,7 @@ public static class GroupEndpoints
         var group = app.MapGroup("/api/v1/groups").WithTags("Groups").RequireAuthorization();
 
         group.MapPost("/", async (CreateGroupRequest request, HttpContext context, GroupService groups, CancellationToken ct) =>
-                Results.Ok(Present(await groups.CreateAsync(context.User.WalletAddress(), request.Name, ct))))
+                Results.Ok(Present(await groups.CreateAsync(context.User.WalletAddress(), request.Name, request.RequiredBadgeTypes, ct))))
             .WithSummary("Creates a group; the creator is its first member");
 
         group.MapGet("/{id}", async (string id, HttpContext context, GroupService groups, CancellationToken ct) =>
@@ -26,7 +27,10 @@ public static class GroupEndpoints
             .WithSummary("Group details and members (members only)");
 
         group.MapGet("/invites/{code}", async (string code, HttpContext context, GroupService groups, CancellationToken ct) =>
-                Results.Ok(await groups.PreviewAsync(context.User.WalletAddress(), code, ct)))
+            {
+                var preview = await groups.PreviewAsync(context.User.WalletAddress(), code, ct);
+                return Results.Ok(preview with { RequiredBadgeContract = preview.RequiredBadgeContract is null ? null : EthAddress.ToChecksum(preview.RequiredBadgeContract) });
+            })
             .WithSummary("What an invite link leads to, before joining");
 
         group.MapPost("/join", async (JoinGroupRequest request, HttpContext context, GroupService groups, IHubContext<ChatHub, IChatClient> hub, CancellationToken ct) =>
@@ -53,6 +57,7 @@ public static class GroupEndpoints
     private static GroupInfo Present(GroupInfo g) => g with
     {
         CreatedBy = EthAddress.ToChecksum(g.CreatedBy),
+        RequiredBadgeContract = g.RequiredBadgeContract is null ? null : EthAddress.ToChecksum(g.RequiredBadgeContract),
         Members = g.Members.Select(m => m with { Address = EthAddress.ToChecksum(m.Address) }).ToList(),
     };
 
