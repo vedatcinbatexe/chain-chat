@@ -43,6 +43,8 @@ internal sealed class GroupConfiguration : IEntityTypeConfiguration<Group>
         b.HasKey(g => g.ConversationId);
         b.Property(g => g.ConversationId).HasMaxLength(Len.Hash);
         b.Property(g => g.Name).HasMaxLength(64);
+        b.Property(g => g.InviteCode).HasMaxLength(32);
+        b.HasIndex(g => g.InviteCode).IsUnique();
         b.Property(g => g.RequiredBadgeContract).HasMaxLength(Len.Address);
         b.Property(g => g.CreatedBy).HasMaxLength(Len.Address);
     }
@@ -140,5 +142,17 @@ internal sealed class GasDripConfiguration : IEntityTypeConfiguration<GasDrip>
         b.Property(d => d.Address).HasMaxLength(Len.Address);
         b.Property(d => d.TxHash).HasMaxLength(Len.Hash);
         b.Property(d => d.AmountWei).HasColumnType("numeric(78,0)");
+    }
+}
+
+internal sealed class MessageReactionConfiguration : IEntityTypeConfiguration<MessageReaction>
+{
+    public void Configure(EntityTypeBuilder<MessageReaction> b)
+    {
+        // One reaction per person per emoji per message.
+        b.HasKey(r => new { r.MessageId, r.Address, r.Emoji });
+        b.Property(r => r.Address).HasMaxLength(Len.Address);
+        b.Property(r => r.Emoji).HasMaxLength(16);
+        b.HasOne<Message>().WithMany().HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);
     }
 }

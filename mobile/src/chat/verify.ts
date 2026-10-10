@@ -21,11 +21,16 @@ export interface VerifiedMessage {
  * fields, verify the sender's signature over it, check each sender's hash chain, then decrypt.
  * `messages` must be in server order (oldest first).
  */
-export async function verifyMessages(
+export function verifyMessages(messages: MessageDto[], me: Address, peerEncryptionKey: Hex, mySecretKey: Hex): Promise<VerifiedMessage[]> {
+  // NaCl box uses one shared key for both directions, so the same call decrypts sent and received messages.
+  return verifyMessagesWith(messages, me, (dto) => decrypt(dto.ciphertext, peerEncryptionKey, mySecretKey));
+}
+
+/** Same checks, with a custom decryption — used for groups, where each sender has their own key. */
+export async function verifyMessagesWith(
   messages: MessageDto[],
   me: Address,
-  peerEncryptionKey: Hex,
-  mySecretKey: Hex,
+  decryptMessage: (dto: MessageDto) => string | null,
 ): Promise<VerifiedMessage[]> {
   const lastBySender = new Map<string, { seq: bigint; messageHash: Hex }>();
 
@@ -61,8 +66,7 @@ export async function verifyMessages(
       return {
         dto,
         mine: sender === me.toLowerCase(),
-        // NaCl box uses one shared key for both directions, so the same call decrypts sent and received messages.
-        text: decrypt(dto.ciphertext, peerEncryptionKey, mySecretKey),
+        text: decryptMessage(dto),
         signatureValid: hashMatches && signature.valid,
         chainIntact,
         recomputedHash: recomputed,

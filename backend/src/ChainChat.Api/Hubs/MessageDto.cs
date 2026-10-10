@@ -19,9 +19,10 @@ public sealed record MessageDto(
     string Signature,
     string ClientTimestamp,
     DateTimeOffset ServerReceivedAt,
-    PaymentDto? Payment)
+    PaymentDto? Payment,
+    IReadOnlyList<ChainChat.Infrastructure.Messaging.ReactionSummary> Reactions)
 {
-    public static MessageDto From(Message m, Payment? payment = null) => new(
+    public static MessageDto From(Message m, Payment? payment = null, IReadOnlyList<ChainChat.Infrastructure.Messaging.ReactionSummary>? reactions = null) => new(
         m.Id,
         m.ConversationId,
         EthAddress.ToChecksum(m.Sender),
@@ -32,7 +33,8 @@ public sealed record MessageDto(
         Hex.FromBytes(m.Signature),
         m.ClientTimestamp.ToString(CultureInfo.InvariantCulture),
         m.ServerReceivedAt,
-        payment is null ? null : PaymentDto.From(payment));
+        payment is null ? null : PaymentDto.From(payment),
+        reactions ?? []);
 }
 
 /// <summary>

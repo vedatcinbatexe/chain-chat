@@ -1,26 +1,29 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, List, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Button, useTheme } from 'react-native-paper';
 
-import { useConversations, type ConversationSummary } from '@/api/conversations';
-import { parsePaymentPayload } from '@/chat/payment';
-import { formatMessageTime, usePeer } from '@/chat/usePeer';
+import { useConversations } from '@/api/conversations';
+import { loadPresence, useChatConnectionStore } from '@/chat/connection';
+import { ConversationRow } from '@/chat/ui/ConversationRow';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorScreen } from '@/components/StatusScreens';
-import { UserAvatar } from '@/components/UserAvatar';
-import { decrypt } from '@/crypto';
-import { formatUnits } from 'viem';
 
-import { getEncryptionKeyPair, useWalletStore } from '@/wallet/walletStore';
-
+/** All conversations — 1:1 chats and groups — most recent first. */
 export default function ChatsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
   const conversations = useConversations();
+  const connected = useChatConnectionStore((state) => state.status === 'connected');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Who of my 1:1 contacts is online right now; later changes arrive live.
+  const peers = conversations.data?.flatMap((c) => (c.peer ? [c.peer.address] : [])).join(',') ?? '';
+  useEffect(() => {
+    if (connected && peers) loadPresence(peers.split(','));
+  }, [connected, peers]);
 
   if (conversations.isPending) return <ActivityIndicator style={styles.loader} />;
   if (conversations.isError) return <ErrorScreen message={conversations.error.message} onRetry={() => conversations.refetch()} />;
@@ -34,10 +37,15 @@ export default function ChatsScreen() {
   if (conversations.data.length === 0) {
     return (
       <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-        <EmptyState icon="message-lock-outline" title="No conversations yet" description="Find someone in Search and send them an end-to-end encrypted message." />
-        <Button mode="contained" icon="account-search-outline" onPress={() => router.navigate('/search')} style={styles.findButton}>
-          Find people
-        </Button>
+        <EmptyState icon="message-lock-outline" title="No conversations yet" description="Find someone in Search, or create a group and share its invite link." />
+        <View style={styles.actions}>
+          <Button mode="contained" icon="account-search-outline" onPress={() => router.navigate('/search')}>
+            Find people
+          </Button>
+          <Button mode="contained-tonal" icon="account-group-outline" onPress={() => router.navigate('/groups')}>
+            Groups
+          </Button>
+        </View>
       </View>
     );
   }
@@ -48,40 +56,7 @@ export default function ChatsScreen() {
       data={conversations.data}
       keyExtractor={(c) => c.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      renderItem={({ item }) => (
-        <ConversationRow conversation={item} onPress={() => router.push({ pathname: '/chat/[address]', params: { address: item.peer.address } })} />
-      )}
-    />
-  );
-}
-
-function ConversationRow({ conversation, onPress }: { conversation: ConversationSummary; onPress: () => void }) {
-  const theme = useTheme();
-  const me = useWalletStore((state) => state.address);
-  const { peer } = usePeer(conversation.peer.address);
-  const last = conversation.lastMessage;
-
-  // Preview only: decrypted with the peer's on-chain key. Full signature and chain checks happen in the chat screen.
-  const text = last && peer ? decrypt(last.ciphertext, peer.encryptionKey, getEncryptionKeyPair().secretKey) : null;
-  const payment = parsePaymentPayload(text);
-  const body = payment ? `💸 ${Number(formatUnits(BigInt(payment.amount), 18)).toLocaleString()} CHAT` : text;
-  const preview = !last ? 'No messages yet' : body === null ? '🔒 Encrypted message' : `${last.sender.toLowerCase() === me?.toLowerCase() ? 'You: ' : ''}${body}`;
-
-  return (
-    <List.Item
-      title={`@${conversation.peer.username}`}
-      description={preview}
-      descriptionNumberOfLines={1}
-      onPress={onPress}
-      left={() => <UserAvatar username={conversation.peer.username} address={conversation.peer.address} />}
-      right={() =>
-        last ? (
-          <Text variant="labelSmall" style={[styles.time, { color: theme.colors.onSurfaceVariant }]}>
-            {formatMessageTime(Number(last.clientTimestamp))}
-          </Text>
-        ) : null
-      }
-      style={styles.row}
+      renderItem={({ item }) => <ConversationRow conversation={item} />}
     />
   );
 }
@@ -89,7 +64,5 @@ function ConversationRow({ conversation, onPress }: { conversation: Conversation
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   loader: { marginTop: 48 },
-  findButton: { alignSelf: 'center', marginBottom: 64 },
-  row: { paddingLeft: 16 },
-  time: { alignSelf: 'center' },
+  actions: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 64 },
 });

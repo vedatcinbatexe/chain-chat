@@ -1,10 +1,21 @@
 using ChainChat.Api.Auth;
 using ChainChat.Core.Crypto;
 using ChainChat.Infrastructure.Messaging;
+using ChainChat.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 
 namespace ChainChat.Api.Hubs;
+
+public sealed record TypingDto(string ConversationId, string Address, bool IsTyping);
+
+public sealed record PresenceDto(string Address, bool Online);
+
+public sealed record ReactionDto(long MessageId, string ConversationId, string Address, string Emoji, bool Added);
+
+/// <summary>Something about a conversation changed (e.g. a member joined or left) — apps refetch it.</summary>
+public sealed record ConversationUpdatedDto(string ConversationId, string Reason);
 
 /// <summary>Server → app events.</summary>
 public interface IChatClient
@@ -14,30 +25,57 @@ public interface IChatClient
 
     /// <summary>A payment claim was confirmed or rejected from its on-chain receipt.</summary>
     Task PaymentUpdated(PaymentUpdateDto update);
+
+    Task TypingChanged(TypingDto typing);
+
+    Task PresenceChanged(PresenceDto presence);
+
+    Task ReactionChanged(ReactionDto reaction);
+
+    Task ConversationUpdated(ConversationUpdatedDto update);
 }
 
 /// <summary>
 /// Real-time messaging (SDD §4.2, §9). Connections are authenticated with the SIWE JWT; each wallet address is
-/// a SignalR user, so a message reaches every device of the recipient.
+/// a SignalR user, so events reach every device of a user. Typing, presence and reactions are metadata the
+/// server can see; message content stays end-to-end encrypted.
 /// </summary>
 [Authorize]
-public sealed class ChatHub(MessageService messages, ILogger<ChatHub> logger) : Hub<IChatClient>
+public sealed class ChatHub(
+    MessageService messages,
+    ReactionService reactions,
+    PresenceTracker presence,
+    ChainChatDbContext db,
+    ILogger<ChatHub> logger) : Hub<IChatClient>
 {
     public const string Path = "/hubs/chat";
+
+    private string Me => EthAddress.Normalize(Context.User!.WalletAddress());
+
+    public override async Task OnConnectedAsync()
+    {
+        if (presence.Connected(Me)) await NotifyContactsAsync(new PresenceDto(EthAddress.ToChecksum(Me), true));
+        await base.OnConnectedAsync();
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        if (presence.Disconnected(Me)) await NotifyContactsAsync(new PresenceDto(EthAddress.ToChecksum(Me), false));
+        await base.OnDisconnectedAsync(exception);
+    }
 
     /// <summary>Validates, stores and relays a message. Returns the stored message as the acknowledgement.</summary>
     public async Task<MessageDto> SendMessage(SendMessageCommand request)
     {
-        var sender = Context.User!.WalletAddress();
         try
         {
-            var (message, payment, created) = await messages.AcceptAsync(sender, request, Context.ConnectionAborted);
+            var (message, payment, created, audience) = await messages.AcceptAsync(Me, request, Context.ConnectionAborted);
             var dto = MessageDto.From(message, payment);
 
             if (created)
             {
-                await Clients.Users(EthAddress.Normalize(request.Recipient), EthAddress.Normalize(sender)).MessageReceived(dto);
-                logger.LogInformation("Relayed message {Id} in {Conversation}", message.Id, message.ConversationId);
+                await Clients.Users(audience).MessageReceived(dto);
+                logger.LogInformation("Relayed message {Id} in {Conversation} to {Count} member(s)", message.Id, message.ConversationId, audience.Count);
             }
 
             return dto;
@@ -47,6 +85,53 @@ public sealed class ChatHub(MessageService messages, ILogger<ChatHub> logger) : 
             // HubException messages are sent to the caller; anything else is hidden as a generic error.
             throw new HubException(ex.Code);
         }
+    }
+
+    /// <summary>Tells the other participants that the caller started or stopped typing.</summary>
+    public async Task Typing(string conversationId, bool isTyping)
+    {
+        var id = conversationId.ToLowerInvariant();
+        var participants = await ActiveParticipantsAsync(id);
+        if (!participants.Contains(Me)) return; // silently ignore non-members
+
+        await Clients.Users(participants.Where(p => p != Me).ToList()).TypingChanged(new TypingDto(id, EthAddress.ToChecksum(Me), isTyping));
+    }
+
+    /// <summary>Adds or removes the caller's emoji reaction on a message.</summary>
+    public async Task React(long messageId, string emoji)
+    {
+        try
+        {
+            var toggle = await reactions.ToggleAsync(Me, messageId, emoji, Context.ConnectionAborted);
+            await Clients.Users(toggle.Audience).ReactionChanged(new ReactionDto(messageId, toggle.ConversationId, EthAddress.ToChecksum(Me), emoji, toggle.Added));
+        }
+        catch (MessageRejectedException ex)
+        {
+            throw new HubException(ex.Code);
+        }
+    }
+
+    /// <summary>Which of the given addresses are online now (initial state; changes arrive as PresenceChanged).</summary>
+    public string[] GetPresence(string[] addresses) =>
+        addresses.Where(EthAddress.IsValid).Select(EthAddress.Normalize).Where(presence.IsOnline).Select(EthAddress.ToChecksum).Distinct().ToArray();
+
+    private Task<List<string>> ActiveParticipantsAsync(string conversationId) =>
+        db.Participants.AsNoTracking()
+            .Where(p => p.ConversationId == conversationId && p.RemovedAt == null)
+            .Select(p => p.Address)
+            .ToListAsync(Context.ConnectionAborted);
+
+    /// <summary>Everyone who shares a conversation with the caller.</summary>
+    private async Task NotifyContactsAsync(PresenceDto update)
+    {
+        var me = Me;
+        var contacts = await db.Participants.AsNoTracking()
+            .Where(p => p.RemovedAt == null && p.Address != me &&
+                        db.Participants.Any(mine => mine.ConversationId == p.ConversationId && mine.Address == me && mine.RemovedAt == null))
+            .Select(p => p.Address)
+            .Distinct()
+            .ToListAsync();
+        if (contacts.Count > 0) await Clients.Users(contacts).PresenceChanged(update);
     }
 }
 

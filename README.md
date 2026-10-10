@@ -1,6 +1,6 @@
 # ChainChat
 
-A mobile messenger where **your wallet is your identity**. No phone numbers or passwords: users sign in with their wallet, register a username on-chain, and exchange end-to-end encrypted messages. They can also send tokens inside chats and join groups gated by NFT ownership. Message history is anchored on-chain with Merkle roots, so anyone can prove it hasn't been altered.
+A mobile messenger where **your wallet is your identity**. No phone numbers or passwords: users sign in with their wallet, register a username on-chain, and exchange end-to-end encrypted messages. They can also send tokens inside chats and chat in end-to-end encrypted groups that are joined through invite links. Message history is anchored on-chain with Merkle roots, so anyone can prove it hasn't been altered.
 
 > **Principle:** the blockchain holds trust, the server holds data.
 
@@ -113,4 +113,4 @@ dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat
 
 ## Status
 
-🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles, end-to-end encrypted 1:1 messaging, on-chain message anchoring with in-app verification, in-chat CHAT payments verified from on-chain receipts. Next: UI polish, NFT-gated groups.
+🚧 In development. Done: local environment, shared crypto spec and test vectors, backend foundation, smart contracts, mobile foundation, wallet sign-in and on-chain onboarding, Registry indexer with user search and profiles, end-to-end encrypted 1:1 messaging, on-chain message anchoring with in-app verification, in-chat CHAT payments verified from on-chain receipts, group chat with invite links, typing indicators, online status and reactions. Next: NFT gating for groups, CI, testnet deployment.

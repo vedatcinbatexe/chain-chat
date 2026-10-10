@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.3 (MVP)
+**Version:** 1.4 (MVP)
 
 ---
 
@@ -53,7 +53,7 @@ ChainChat applies the cryptographic and structural building blocks covered in BL
 | 3 | On-chain username & encryption key registry | Decentralized, tamper-proof directory |
 | 4 | End-to-end encrypted 1:1 chat | Encryption public keys resolved from chain |
 | 5 | Send tokens inside a chat | ERC-20 transfers |
-| 6 | NFT-gated group chat | ERC-721 ownership checked on-chain |
+| 6 | Group chat with invite links, typing, presence and reactions (NFT gating optional) | Member keys resolved from chain; ERC-721 ownership checked on-chain for gated groups |
 | 7 | Signed, hash-chained messages with on-chain anchoring & verification | Wallet signatures + Merkle roots stored on-chain |
 | 8 | Blockchain activity screen | Explorer links for every transaction |
 
@@ -299,7 +299,7 @@ sequenceDiagram
 Each message is linked to the **sender's previous message in the same conversation** (a per-sender hash chain). Chaining per sender rather than per conversation avoids sequence conflicts when two participants send at the same moment.
 
 1. The app resolves the recipient's encryption public key **directly from the Registry contract via RPC** (cached locally, re-checked on `KeyUpdated`).
-2. The app encrypts the plaintext locally (X25519 shared secret + XSalsa20-Poly1305, random nonce). For group messages, the plaintext is encrypted separately for each member (§6.5).
+2. The app encrypts the plaintext locally (X25519 shared secret + XSalsa20-Poly1305, random nonce). For group messages, the plaintext is encrypted once with a random message key, and that key is wrapped for each member (§6.5).
 3. The app builds the message header and computes the message hash:
    ```
    messageHash = keccak256(abi.encode(
@@ -320,12 +320,19 @@ Each message is linked to the **sender's previous message in the same conversati
 
 > The server never trusts the client's claim about a payment; it trusts only the on-chain receipt.
 
-### 6.5 Joining an NFT-Gated Group
-1. The user requests to join the group.
-2. The API calls `balanceOf(user)` on the Badge contract. If the balance is greater than zero, the user is added to the member list.
-3. **Every member's client independently checks `balanceOf` via RPC** before encrypting anything to a member. A server that adds an unauthorized member therefore gains nothing: clients will not encrypt messages to them.
-4. Group messages use **per-member fan-out encryption**: the sender encrypts the message once per member's public key. There is no shared group key to distribute or rotate. This is practical for small groups (≤ 20 members, the MVP limit).
-5. If the badge is later transferred away, the indexer revokes membership, and clients stop encrypting to that address as soon as their own `balanceOf` check fails.
+### 6.5 Group Chat
+**Creating and joining.** A user creates a group with a name; the API assigns a random 32-byte conversation id and a random invite code (22 base62 characters, about 131 bits). The creator shares the invite link `chainchat://join/<code>`. Opening the link shows a preview (name, member count, creator) and a Join button; joining adds the wallet to the member list (maximum 20 members). Anyone holding the link can join, so the link is the access secret. Members can leave, and rejoin with the link.
+
+**Encryption (hybrid).** For every group message the sender:
+1. generates a fresh random 32-byte message key and encrypts the text once with it (XSalsa20-Poly1305 secretbox);
+2. wraps the message key for each current member (including themselves) with X25519 + XSalsa20-Poly1305, using the member's encryption key **read from the Registry contract**, not from the server;
+3. sends the envelope `{"v":1,"n":nonce,"c":ciphertext,"k":{member address: wrapped key}}` as the message ciphertext.
+
+The envelope bytes are what goes into the message hash, so signatures, the per-sender hash chain and anchoring work exactly as for 1:1 messages. There is no long-lived group key to distribute or rotate: a member who joins later cannot read earlier messages, and a member who leaves is simply no longer included in new envelopes. Each wrapper costs 72 bytes, about 1.4 KB for a full group.
+
+**Live metadata.** Typing indicators, online status and emoji reactions travel over the SignalR hub. They are not encrypted, not signed and not anchored: they are convenience metadata that the server can see, and could forge. Message content and authorship never depend on them.
+
+**NFT gating (optional, planned).** A group may require a ClassBadge. The API then checks `balanceOf(user)` before adding a member, **every member's client independently checks `balanceOf` via RPC** before wrapping a key for a member (so a server that adds an unauthorized member gains nothing), and the indexer revokes membership when the badge is transferred away.
 
 ### 6.6 Integrity Anchoring & Verification
 ```mermaid
@@ -424,7 +431,9 @@ Both the backend (C#) and mobile (TypeScript) implementations follow this specif
 - Metadata (who talks to whom, when) is visible to the server.
 - Admin key is a single point of control for minting and anchoring. It cannot forge messages, but it can delay or skip anchoring.
 - The server can withhold the most recent messages of a sender; this is only detected once a later message from the same sender arrives.
-- Group fan-out encryption limits groups to about 20 members.
+- Per-member key wrapping limits groups to about 20 members.
+- A group invite link is a bearer secret: anyone who obtains it can join and read new messages (existing members see the join).
+- Typing, presence and reactions are unauthenticated metadata visible to the server.
 
 These are documented deliberately and discussed in the presentation as future improvements.
 
@@ -432,7 +441,8 @@ These are documented deliberately and discussed in the presentation as future im
 
 ## 9. Real-Time Design
 - A single SignalR hub with authenticated connections (JWT).
-- Each conversation maps to a SignalR group; joining requires a membership check (on-chain for gated groups).
+- Messages and live events (typing, presence, reactions, membership changes) are delivered per wallet address to the conversation's current members; membership is checked on every send.
+- Presence is tracked in memory from hub connections (online while at least one connection is open) and is only shared with users who have a conversation in common.
 - Single API instance for the MVP; no backplane required.
 - Offline delivery: undelivered messages are stored and flushed on reconnect.
 - Chain-driven events (payment confirmed, membership revoked) are pushed to clients through the same hub.

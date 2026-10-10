@@ -36,13 +36,15 @@ public class Conversation
     public List<Participant> Participants { get; set; } = [];
 }
 
-/// <summary>NFT-gated group settings for a group conversation (SDD §6.5).</summary>
+/// <summary>Settings of a group conversation. Members join with the invite code (SDD §6.5).</summary>
 public class Group
 {
     public required string ConversationId { get; set; }
     public required string Name { get; set; }
-    /// <summary>ERC-721 contract whose badge is required to join.</summary>
-    public required string RequiredBadgeContract { get; set; }
+    /// <summary>Secret code in the invite link (chainchat://join/{code}); anyone with the link can join.</summary>
+    public required string InviteCode { get; set; }
+    /// <summary>Optional ERC-721 contract whose badge is required to join (NFT gating, Phase 12).</summary>
+    public string? RequiredBadgeContract { get; set; }
     public int MaxMembers { get; set; } = 20;
     public required string CreatedBy { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -55,6 +57,15 @@ public class Participant
     public required string Address { get; set; }
     public DateTimeOffset JoinedAt { get; set; }
     public DateTimeOffset? RemovedAt { get; set; }
+}
+
+/// <summary>An emoji reaction to a message. Metadata, visible to the server (unlike message content).</summary>
+public class MessageReaction
+{
+    public long MessageId { get; set; }
+    public required string Address { get; set; }
+    public required string Emoji { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
 }
 
 public enum MessageType
