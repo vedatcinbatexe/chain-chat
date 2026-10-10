@@ -14,6 +14,8 @@ import { addMessageToCache, loadPresence, toggleReaction, useChatConnectionStore
 import { describeTyping, useIsOnline, useTypingAddresses } from '@/chat/liveStore';
 import { formatPaymentPayload } from '@/chat/payment';
 import { sendTextMessage } from '@/chat/send';
+import { pickImageMessage } from '@/chat/sendImage';
+import { prepareVoiceMessage } from '@/chat/sendVoice';
 import { SendPaymentSheet } from '@/chat/SendPaymentSheet';
 import { buildRows, ConnectionBar, DaySeparator, EmptyConversation, LoadingHistory, MessageBubble, PendingBubble, type PendingMessage } from '@/chat/ui/ChatParts';
 import { Composer } from '@/chat/ui/Composer';
@@ -207,6 +209,11 @@ export default function ChatScreen() {
           if (!text) return;
           setDraft('');
           send(text);
+        }}
+        onSendVoice={async (recording) => send(await prepareVoiceMessage(recording))}
+        onSendImage={async () => {
+          const picture = await pickImageMessage();
+          if (picture) send(picture);
         }}
         connected={connected}
         onPay={() => setPaying(true)}

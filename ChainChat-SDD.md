@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.9 (MVP)
+**Version:** 2.0 (MVP)
 
 ---
 
@@ -56,6 +56,7 @@ ChainChat applies the cryptographic and structural building blocks covered in BL
 | 6 | Group chat with invite links, typing, presence and reactions; optional NFT gating: the creator chooses the badge types members must hold | Member keys resolved from chain; ERC-721 ownership checked on-chain for gated groups |
 | 7 | Signed, hash-chained messages with on-chain anchoring & verification | Wallet signatures + Merkle roots stored on-chain |
 | 8 | Blockchain activity screen: the wallet's own on-chain history and recent anchor batches, rebuilt in the app from contract events | Event logs read directly from the chain; explorer links for every transaction |
+| 11 | End-to-end encrypted voice messages, photos and GIFs in 1:1 and group chats (§6.8) | The file's fingerprint is inside the signed, anchored message, so a changed recording or picture is detected |
 | 10 | Several assets, with deposits from and withdrawals to a simulated exchange (§4.5) | Native ETH and ERC-20 transfers signed on the device; balances read only from the chain |
 | 9 | Web admin dashboard (§4.4) | Wallet-based admin login; ERC-20 minting by the contract owner; shows what a server operator can and cannot do |
 
@@ -414,6 +415,24 @@ Both the backend (C#) and mobile (TypeScript) implementations follow this specif
 - **Odd number of nodes:** the last node at a level is promoted unchanged to the next level and contributes no proof element at that level.
 - **Empty batch:** never anchored.
 
+### 6.8 Voice Messages and Images
+A recording or a picture is too large to travel inside a message, so it is stored as a separate encrypted file and the message carries what is needed to fetch, check and open it. This works in 1:1 chats and in groups. The steps below describe a voice message; a photo or GIF follows exactly the same steps.
+
+1. The app records up to 60 seconds of speech-quality audio (AAC, mono).
+2. The app generates a fresh random 32-byte **file key** and encrypts the audio with it (XSalsa20-Poly1305). The result — nonce ‖ ciphertext — is the *encrypted file*.
+3. The app uploads the encrypted file. The server stores it under a random 128-bit id and returns the id. It never sees the key.
+4. The app sends an ordinary chat message whose content is `{"$chainchat":"voice", id, key, hash, durationMs, size}`, where `hash` is the keccak256 **fingerprint of the encrypted file**. This message is end-to-end encrypted, signed, hash-chained and later anchored like any text message (§6.3, §6.6); in a group the usual per-member key wrapping applies (§6.5).
+5. The recipient's app downloads the encrypted file when the user taps play, recomputes its fingerprint and compares it with the one in the signed message, and only then decrypts and plays it.
+
+What this gives:
+- **Confidential:** the server holds only ciphertext; the file key exists only inside the encrypted message.
+- **Tamper-evident:** if the stored file is changed or swapped, its fingerprint no longer matches the signed message and the app refuses to play it. Because the fingerprint is part of the message that is anchored on-chain, the audio is covered by the same proof as text.
+- **Access:** any signed-in wallet that knows an attachment's id can download the ciphertext; the id is unguessable and the bytes are useless without the key.
+
+**Images.** The message content is `{"$chainchat":"image", id, key, hash, mime, width, height, size}`. Photos are scaled down (longer side at most 1600 px) and re-encoded as JPEG on the phone before encryption, which also removes their metadata such as location; GIFs are sent unchanged so they stay animated. A picture is downloaded, checked and decrypted when its bubble appears, and one whose fingerprint does not match is not shown. An encrypted file may be up to 8 MB.
+
+**Reactions.** A reaction may be any single emoji. The server checks that it is exactly one emoji and nothing else, because reactions are stored in the clear (§8.3) and must not become a channel for unencrypted text.
+
 ---
 
 ## 7. Data Design
@@ -436,6 +455,7 @@ Both the backend (C#) and mobile (TypeScript) implementations follow this specif
 - **AnchorBatch:** root, message range, tx hash, block number.
 - **ChainSyncState:** last processed block per contract (for indexer resume).
 - **GasDrip:** address, tx hash, timestamp (one per address).
+- **Attachment (§6.8):** id, uploader, size and the encrypted bytes of a voice message or an image.
 - **Assets (§4.5):** AssetTransfer (a history of deposits, withdrawals and transfers — not a ledger), ExchangeWallet (the simulated exchange's wallets and their keys).
 - **Admin dashboard (§4.4):** AdminAccount (admins added by root admins), BannedUser, AdminFunding (asset, amount, tx hash, admin), AdminAuditEntry (append-only), SystemSetting (runtime settings).
 
@@ -477,6 +497,7 @@ Both the backend (C#) and mobile (TypeScript) implementations follow this specif
 - Per-member key wrapping limits groups to about 20 members.
 - A group invite link is a bearer secret: anyone who obtains it can join and read new messages (existing members see the join).
 - Typing, presence and reactions are unauthenticated metadata visible to the server.
+- Voice messages and images: the server sees that a message has an attachment and how large it is, though not its content or whether it is audio or a picture. Encrypted files are kept indefinitely; there is no deletion or expiry.
 
 These are documented deliberately and discussed in the presentation as future improvements.
 

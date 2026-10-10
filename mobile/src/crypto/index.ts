@@ -6,3 +6,4 @@ export * from './messageHash';
 export * from './signature';
 export * from './siwe';
 export * from './groupEncryption';
+export * from './attachment';

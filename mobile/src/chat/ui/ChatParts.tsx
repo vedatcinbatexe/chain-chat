@@ -4,6 +4,10 @@ import { formatUnits, type Address, type Hex } from 'viem';
 
 import type { ReactionSummary } from '@/api/conversations';
 import { parsePaymentPayload } from '../payment';
+import { describeMedia, parseImagePayload } from '../image';
+import { parseVoicePayload } from '../voice';
+import { ImageContent } from './ImageContent';
+import { VoiceContent } from './VoiceContent';
 import { PaymentContent } from '../PaymentContent';
 import { formatMessageTime } from '../usePeer';
 import type { VerifiedMessage } from '../verify';
@@ -101,6 +105,8 @@ export function MessageBubble({ message, groupedWithNext, senderLabel, senderNam
   // A payment only counts if the signed, encrypted payload names the same transaction the server recorded.
   const parsed = parsePaymentPayload(text);
   const payment = parsed && recipient && (!dto.payment || dto.payment.txHash.toLowerCase() === parsed.txHash.toLowerCase()) ? parsed : null;
+  const voice = parseVoicePayload(text);
+  const image = parseImagePayload(text);
 
   const background = !signatureValid
     ? theme.colors.errorContainer
@@ -145,6 +151,10 @@ export function MessageBubble({ message, groupedWithNext, senderLabel, senderNam
         style={[styles.bubble, tail, payment && styles.paymentBubble, { backgroundColor: background }]}>
         {payment && recipient ? (
           <PaymentContent payload={payment} dto={dto} recipient={recipient} color={foreground} />
+        ) : voice ? (
+          <VoiceContent voice={voice} color={foreground} />
+        ) : image ? (
+          <ImageContent image={image} color={foreground} onLongPress={onLongPress} />
         ) : (
           <Text variant="bodyLarge" style={{ color: foreground, fontStyle: text === null ? 'italic' : 'normal' }}>
             {text ?? 'Could not decrypt this message'}
@@ -225,7 +235,8 @@ export function PendingBubble({ pending, onRetry }: { pending: PendingMessage; o
 
 function describePending(pending: PendingMessage): string {
   const payment = parsePaymentPayload(pending.text);
-  return payment ? `💸 Sending ${formatUnits(BigInt(payment.amount), 18)} ${payment.token}…` : pending.text;
+  if (payment) return `💸 Sending ${formatUnits(BigInt(payment.amount), 18)} ${payment.token}…`;
+  return describeMedia(pending.text) ?? pending.text;
 }
 
 /** Slim bar shown while the real-time connection is not up. */

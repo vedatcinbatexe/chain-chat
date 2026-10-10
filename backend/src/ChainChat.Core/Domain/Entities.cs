@@ -300,3 +300,17 @@ public class ExchangeWallet
     public required string PrivateKey { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>
+/// An encrypted file that belongs to a message — today, a voice message (SDD §6.8). The server stores bytes it
+/// cannot read: the key and the file's fingerprint travel inside the end-to-end encrypted, signed message.
+/// </summary>
+public class Attachment
+{
+    /// <summary>Random 128-bit id (32 hex characters): unguessable, so knowing it is what grants access.</summary>
+    public required string Id { get; set; }
+    public required string Uploader { get; set; }
+    public int Size { get; set; }
+    public required byte[] Content { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
