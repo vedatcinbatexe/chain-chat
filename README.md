@@ -113,8 +113,10 @@ To run the API from your IDE or with hot reload instead of in Docker:
 cd infra/local && docker compose stop api
 cd ../../backend
 dotnet run --project src/ChainChat.Api      # http://localhost:5080
-dotnet test                                  # includes the shared crypto test vectors
+dotnet test                                  # unit tests (shared crypto vectors) + API integration tests
 ```
+
+The API integration tests (`tests/ChainChat.Api.Tests`) start a throwaway PostgreSQL with Testcontainers, so Docker must be running. They need no blockchain: the indexers are switched off and badge ownership is faked.
 
 Database migrations (EF Core, installed as a local tool):
 
@@ -134,7 +136,7 @@ dotnet ef migrations add <Name> -p src/ChainChat.Infrastructure -s src/ChainChat
 |---|---|
 | Contracts | `forge fmt --check`, build, tests, and that the ABI files in `shared/deployments/abi` match the contracts |
 | Shared test vectors | generator typecheck and tests, and that the committed vectors are what the generator produces |
-| Backend | build and tests |
+| Backend | build, unit tests, and API integration tests against a real PostgreSQL (Testcontainers) |
 | Mobile app | typecheck, lint, tests |
 | Web dashboard | typecheck and build |
 | Docker images | the API, dashboard and contracts-deployer images build |

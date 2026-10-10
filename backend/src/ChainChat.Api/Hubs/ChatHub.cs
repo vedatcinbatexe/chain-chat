@@ -51,6 +51,7 @@ public sealed class ChatHub(
     MessageService messages,
     ReactionService reactions,
     PresenceTracker presence,
+    ChainChat.Api.Common.HubMessageLimiter limiter,
     ChainChatDbContext db,
     ILogger<ChatHub> logger) : Hub<IChatClient>
 {
@@ -73,6 +74,9 @@ public sealed class ChatHub(
     /// <summary>Validates, stores and relays a message. Returns the stored message as the acknowledgement.</summary>
     public async Task<MessageDto> SendMessage(SendMessageCommand request)
     {
+        // A wallet that floods the hub is slowed down before any signature or database work is done.
+        if (!limiter.TryAcquire(Me)) throw new HubException("RateLimited");
+
         try
         {
             var (message, payment, created, audience) = await messages.AcceptAsync(Me, request, Context.ConnectionAborted);

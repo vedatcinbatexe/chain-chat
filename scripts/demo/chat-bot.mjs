@@ -51,13 +51,24 @@ function decryptGroup(ciphertext, senderKey) {
     return null;
   }
 }
-async function encryptGroup(text, members) {
+const holdsAllAbi = parseAbi(['function holdsAll(address owner, uint256[] typeIds) view returns (bool)']);
+
+async function encryptGroup(text, group) {
   const messageKey = nacl.randomBytes(32);
   const nonce = nacl.randomBytes(24);
+  const required = (group.requiredBadges ?? []).map((badge) => BigInt(badge.id));
   const k = {};
-  for (const member of members) {
+  for (const member of group.members) {
     const registration = await resolveUser(member.address);
     if (!registration.username) continue;
+    // NFT-gated group: like the apps, check the member's badges on the chain instead of trusting the server's list.
+    if (group.requiredBadgeContract && required.length > 0) {
+      const holds = await chain.readContract({ address: group.requiredBadgeContract, abi: holdsAllAbi, functionName: 'holdsAll', args: [member.address, required] });
+      if (!holds) {
+        log(`  not encrypting to ${member.username ?? member.address}: a required badge is missing`);
+        continue;
+      }
+    }
     const wrapNonce = nacl.randomBytes(24);
     k[member.address.toLowerCase()] = bytesToHex(new Uint8Array([...wrapNonce, ...nacl.box(messageKey, wrapNonce, hexToBytes(registration.encryptionKey), encSecret)]));
   }
@@ -135,7 +146,7 @@ connection.on('MessageReceived', async (m) => {
   const head = await myHead(conversationId);
   let ciphertext;
   if (group) {
-    ciphertext = await encryptGroup(replyText, group.members);
+    ciphertext = await encryptGroup(replyText, group);
   } else {
     const nonce = nacl.randomBytes(24);
     const box = nacl.box(new TextEncoder().encode(replyText), nonce, hexToBytes(peer.encryptionKey), encSecret);

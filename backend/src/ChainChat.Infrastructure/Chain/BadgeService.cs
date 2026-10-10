@@ -38,10 +38,37 @@ public sealed class TypeOfFunction : FunctionMessage
 public sealed record BadgeType(int Id, string Name);
 
 /// <summary>
+/// Badge types and badge ownership, as the rest of the backend sees them (SDD §6.5). The real implementation asks
+/// the chain; tests replace it to decide who holds what.
+/// </summary>
+public interface IBadgeReader
+{
+    /// <summary>The deployed ClassBadge contract (lowercase), or null if it is not deployed on this network.</summary>
+    string? ContractAddress { get; }
+
+    /// <summary>All badge types of the contract, in id order (ids start at 1).</summary>
+    Task<IReadOnlyList<BadgeType>> TypesAsync(string contract, CancellationToken ct);
+
+    /// <summary>The badge type name of one minted badge, e.g. "Student".</summary>
+    Task<string> TypeNameOfTokenAsync(string contract, BigInteger tokenId, CancellationToken ct);
+
+    /// <summary>Total number of badges (of any type) the address holds.</summary>
+    Task<BigInteger> BalanceAsync(string contract, string address, CancellationToken ct);
+
+    Task<int> BalanceOfTypeAsync(string contract, string address, int typeId, CancellationToken ct);
+
+    /// <summary>Which of the badge types the address holds at least one of, right now.</summary>
+    Task<IReadOnlySet<int>> HeldAsync(string contract, string address, IEnumerable<int> typeIds, CancellationToken ct);
+
+    /// <summary>True if the address holds every badge type in the list (true for an empty list).</summary>
+    Task<bool> HoldsAllAsync(string contract, string address, IReadOnlyCollection<int> typeIds, CancellationToken ct);
+}
+
+/// <summary>
 /// Reads ClassBadge (ERC-721) badge types and ownership from the chain for NFT-gated groups (SDD §6.5). Ownership
 /// is always asked from the chain and never cached, so a transferred badge stops counting at once.
 /// </summary>
-public sealed class BadgeService(ChainClient chain, ContractDeployments deployments)
+public sealed class BadgeService(ChainClient chain, ContractDeployments deployments) : IBadgeReader
 {
     // Badge type names never change once created, so they can be cached per contract.
     private readonly ConcurrentDictionary<(string Contract, int Id), string> _names = new();

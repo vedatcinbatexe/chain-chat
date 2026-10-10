@@ -19,6 +19,7 @@ const MESSAGES: Record<string, string> = {
   TooManyBadges: 'A group can require at most 5 badges.',
   BadgeNotAvailable: 'The ClassBadge contract is not deployed on this network.',
   // Messages
+  RateLimited: 'You are sending messages too fast. Wait a moment and try again.',
   PaymentTxAlreadyClaimed: 'This payment was already sent in a message.',
   PaymentsNotSupportedInGroups: 'Payments can only be sent in a 1:1 chat.',
 };

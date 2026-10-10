@@ -7,6 +7,28 @@ public sealed class RateLimitingOptions
 {
     public int PermitLimit { get; set; } = 100;
     public int WindowSeconds { get; set; } = 10;
+
+    /// <summary>Login requests (nonce + verify) per minute per client IP.</summary>
+    public int AuthPermitLimit { get; set; } = 20;
+
+    /// <summary>Chat messages a wallet may send over the hub within <see cref="HubMessageWindowSeconds"/>.</summary>
+    public int HubMessageLimit { get; set; } = 30;
+
+    public int HubMessageWindowSeconds { get; set; } = 10;
+}
+
+/// <summary>Limits how fast one wallet can send chat messages over the hub (the HTTP limits do not cover it).</summary>
+public sealed class HubMessageLimiter(IConfiguration configuration, TimeProvider time)
+{
+    private readonly ChainChat.Core.Messaging.SlidingWindowLimiter _limiter = Create(configuration, time);
+
+    public bool TryAcquire(string address) => _limiter.TryAcquire(address);
+
+    private static ChainChat.Core.Messaging.SlidingWindowLimiter Create(IConfiguration configuration, TimeProvider time)
+    {
+        var settings = configuration.GetSection("RateLimiting").Get<RateLimitingOptions>() ?? new RateLimitingOptions();
+        return new(settings.HubMessageLimit, TimeSpan.FromSeconds(settings.HubMessageWindowSeconds), time);
+    }
 }
 
 public static class RateLimiting
@@ -30,7 +52,7 @@ public static class RateLimiting
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
                 PerIp(context, settings.PermitLimit, TimeSpan.FromSeconds(settings.WindowSeconds)));
-            options.AddPolicy(AuthPolicy, context => PerIp(context, 20, TimeSpan.FromMinutes(1)));
+            options.AddPolicy(AuthPolicy, context => PerIp(context, settings.AuthPermitLimit, TimeSpan.FromMinutes(1)));
             options.AddPolicy(DripPolicy, context => PerIp(context, 10, TimeSpan.FromHours(1)));
             options.AddPolicy(AnchorPolicy, context => PerIp(context, 5, TimeSpan.FromMinutes(1)));
         });

@@ -30,6 +30,7 @@ try
     builder.Services.AddSignalR();
     builder.Services.AddSingleton<IUserIdProvider, WalletUserIdProvider>();
     builder.Services.AddSingleton<PresenceTracker>();
+    builder.Services.AddSingleton<HubMessageLimiter>();
     builder.Services.AddSingleton<ChainChat.Infrastructure.Payments.IPaymentNotifier, HubPaymentNotifier>();
     builder.Services.AddSingleton<ChainChat.Infrastructure.Indexing.IGroupNotifier, HubGroupNotifier>();
     builder.Services.AddSingleton<ChainChat.Infrastructure.Notifications.IUserNotifier, HubUserNotifier>();

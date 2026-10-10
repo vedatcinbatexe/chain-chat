@@ -5,6 +5,7 @@
     <Project Path="src/ChainChat.Infrastructure/ChainChat.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ChainChat.Api.Tests/ChainChat.Api.Tests.csproj" />
     <Project Path="tests/ChainChat.Core.Tests/ChainChat.Core.Tests.csproj" />
   </Folder>
 </Solution>

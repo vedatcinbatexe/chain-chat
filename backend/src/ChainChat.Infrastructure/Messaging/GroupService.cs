@@ -39,7 +39,7 @@ public sealed class GroupException(string code, int status) : Exception(code)
 }
 
 /// <summary>Group conversations joined with an invite link (SDD §6.5). Messages stay end-to-end encrypted to all members.</summary>
-public sealed class GroupService(ChainChatDbContext db, TimeProvider time, ChainChat.Infrastructure.Admin.SystemSettings settings, BadgeService badges)
+public sealed class GroupService(ChainChatDbContext db, TimeProvider time, ChainChat.Infrastructure.Admin.SystemSettings settings, IBadgeReader badges)
 {
     public const int MaxNameLength = 64;
     public const int MaxRequiredBadges = 5;

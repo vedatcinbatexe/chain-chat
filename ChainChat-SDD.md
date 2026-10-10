@@ -473,6 +473,7 @@ These are documented deliberately and discussed in the presentation as future im
 - Single API instance for the MVP; no backplane required.
 - Offline delivery: undelivered messages are stored and flushed on reconnect.
 - Chain-driven events (payment confirmed, membership revoked) are pushed to clients through the same hub.
+- Sending is rate-limited per wallet on the hub (30 messages per 10 seconds by default); the HTTP rate limits are per client IP.
 - **In-app notifications.** While the app is open it shows a banner, and keeps an inbox for the session, for: a new 1:1 or group message, a CHAT payment in a chat, ETH or CHAT sent by an admin, a badge received, removal from a group, the account being blocked or unblocked, and admin announcements.
   - *Message notifications are built on the phone.* The app receives the encrypted message over the hub as usual, decrypts it with the sender's on-chain key and writes the banner itself; the server never learns what the banner says.
   - *Other notifications come from the server* as a `Notification` hub event (kind, title, text). They are hints: the facts behind them (balances, badges, membership) are read from the chain or the API afterwards.

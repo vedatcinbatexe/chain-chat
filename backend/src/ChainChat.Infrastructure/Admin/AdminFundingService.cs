@@ -64,7 +64,7 @@ public sealed class AdminFundingService(
     ChainClient chain,
     ContractDeployments deployments,
     AdminService admins,
-    BadgeService badges,
+    IBadgeReader badges,
     IOptions<AdminOptions> options,
     IOptions<ChainOptions> chainOptions,
     TimeProvider time,
