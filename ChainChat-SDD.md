@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.6 (MVP)
+**Version:** 1.7 (MVP)
 
 ---
 
@@ -227,6 +227,7 @@ A web application (`web-dashboard/`: React, TypeScript, Tailwind CSS) for the pe
 - **Messages:** metadata only — sender, conversation, size, hash, anchoring state.
 - **Transactions:** in-chat payments, admin fundings, gas drips and anchor batches.
 - **System:** runtime settings (pause messaging, allow group creation, maximum group size, gas drip), trigger anchoring, and view chain, indexer and configuration status. Secrets are never returned.
+- **Announcements:** send a title and a short text to every connected app, where it appears as a notification. Announcements are plain server messages, not end-to-end encrypted chat messages, and are not queued for offline users.
 - **Audit log:** every change made through the dashboard is appended with the admin's address.
 
 **What admins cannot do.** The trust boundaries of §4.3 apply to admins as well. They cannot read messages (the server has only ciphertext), and the dashboard deliberately has no action to edit or delete messages: every message is signed, hash-chained and anchored, so such a change would be detected by the apps. They also cannot take away a username or funds, because those live on the chain. Admin power is limited to *availability on this server* (bans, pausing, group membership) and to the admin key's on-chain rights (minting, anchoring).
@@ -472,6 +473,10 @@ These are documented deliberately and discussed in the presentation as future im
 - Single API instance for the MVP; no backplane required.
 - Offline delivery: undelivered messages are stored and flushed on reconnect.
 - Chain-driven events (payment confirmed, membership revoked) are pushed to clients through the same hub.
+- **In-app notifications.** While the app is open it shows a banner, and keeps an inbox for the session, for: a new 1:1 or group message, a CHAT payment in a chat, ETH or CHAT sent by an admin, a badge received, removal from a group, the account being blocked or unblocked, and admin announcements.
+  - *Message notifications are built on the phone.* The app receives the encrypted message over the hub as usual, decrypts it with the sender's on-chain key and writes the banner itself; the server never learns what the banner says.
+  - *Other notifications come from the server* as a `Notification` hub event (kind, title, text). They are hints: the facts behind them (balances, badges, membership) are read from the chain or the API afterwards.
+  - Notifications are neither stored nor queued, and reach only connected apps. Notifying a closed app would need a push service (APNs / FCM); with end-to-end encryption such a push could only say *that* a message arrived, not what it says.
 
 ---
 

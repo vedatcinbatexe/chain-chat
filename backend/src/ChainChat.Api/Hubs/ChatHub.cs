@@ -17,6 +17,9 @@ public sealed record ReactionDto(long MessageId, string ConversationId, string A
 /// <summary>Something about a conversation changed (e.g. a member joined or left) — apps refetch it.</summary>
 public sealed record ConversationUpdatedDto(string ConversationId, string Reason);
 
+/// <summary>An in-app notification; see <see cref="ChainChat.Infrastructure.Notifications.UserNotification"/> for the kinds.</summary>
+public sealed record NotificationDto(string Kind, string Title, string Body, string? ConversationId, DateTimeOffset CreatedAt);
+
 /// <summary>Server → app events.</summary>
 public interface IChatClient
 {
@@ -33,6 +36,9 @@ public interface IChatClient
     Task ReactionChanged(ReactionDto reaction);
 
     Task ConversationUpdated(ConversationUpdatedDto update);
+
+    /// <summary>Something to show the user as an in-app banner (funds or a badge received, an announcement, …).</summary>
+    Task Notification(NotificationDto notification);
 }
 
 /// <summary>
@@ -140,6 +146,17 @@ public sealed class HubPaymentNotifier(IHubContext<ChatHub, IChatClient> hub) : 
 {
     public Task PaymentUpdatedAsync(ChainChat.Core.Domain.Payment payment, string conversationId, CancellationToken ct) =>
         hub.Clients.Users(payment.From, payment.To).PaymentUpdated(new PaymentUpdateDto(payment.MessageId!.Value, conversationId, PaymentDto.From(payment)));
+}
+
+public sealed class HubUserNotifier(IHubContext<ChatHub, IChatClient> hub, TimeProvider time) : ChainChat.Infrastructure.Notifications.IUserNotifier
+{
+    public Task NotifyAsync(string address, ChainChat.Infrastructure.Notifications.UserNotification notification, CancellationToken ct) =>
+        hub.Clients.User(address.ToLowerInvariant()).Notification(Present(notification));
+
+    public Task BroadcastAsync(ChainChat.Infrastructure.Notifications.UserNotification notification, CancellationToken ct) =>
+        hub.Clients.All.Notification(Present(notification));
+
+    private NotificationDto Present(ChainChat.Infrastructure.Notifications.UserNotification n) => new(n.Kind, n.Title, n.Body, n.ConversationId, time.GetUtcNow());
 }
 
 public sealed class HubGroupNotifier(IHubContext<ChatHub, IChatClient> hub) : ChainChat.Infrastructure.Indexing.IGroupNotifier

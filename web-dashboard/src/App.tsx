@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { useSession } from './lib/session';
 import { AdminsPage } from './pages/Admins';
+import { AnnouncementsPage } from './pages/Announcements';
 import { AuditPage } from './pages/Audit';
 import { BadgesPage } from './pages/Badges';
 import { GroupDetailPage } from './pages/GroupDetail';
@@ -31,6 +32,7 @@ export function App() {
         <Route path="badges" element={<BadgesPage />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="transactions" element={<TransactionsPage />} />
+        <Route path="announcements" element={<AnnouncementsPage />} />
         <Route path="admins" element={<AdminsPage />} />
         <Route path="audit" element={<AuditPage />} />
         <Route path="system" element={<SystemPage />} />

@@ -23,6 +23,8 @@ const MESSAGES: Record<string, string> = {
   AmountOutOfRange: 'The amount is outside the allowed range.',
   FundingDisabled: 'Funding is not configured on the server.',
   BadgeNotDeployed: 'The ClassBadge contract is not deployed on this network.',
+  InvalidTitle: 'Enter a title of up to 80 characters.',
+  InvalidBody: 'Enter a message of up to 500 characters.',
   InvalidBadgeName: 'Enter a badge name of up to 32 characters.',
   BadgeNameTaken: 'A badge with this name already exists.',
   UnknownBadgeType: 'This badge type does not exist.',

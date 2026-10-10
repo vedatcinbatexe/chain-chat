@@ -216,3 +216,14 @@ internal sealed class SystemSettingConfiguration : IEntityTypeConfiguration<Syst
         b.Property(s => s.UpdatedBy).HasMaxLength(Len.Address);
     }
 }
+
+internal sealed class AnnouncementConfiguration : IEntityTypeConfiguration<Announcement>
+{
+    public void Configure(EntityTypeBuilder<Announcement> b)
+    {
+        b.HasKey(a => a.Id);
+        b.Property(a => a.Title).HasMaxLength(80);
+        b.Property(a => a.Body).HasMaxLength(500);
+        b.Property(a => a.Admin).HasMaxLength(Len.Address);
+    }
+}

@@ -9,6 +9,7 @@ import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { queryClient } from '@/api/queryClient';
+import { NotificationBanner } from '@/notifications/NotificationBanner';
 import { getThemes } from '@/theme/theme';
 import { useWalletStore } from '@/wallet/walletStore';
 
@@ -41,6 +42,7 @@ export default function RootLayout() {
               <Stack.Screen name="group/[id]" options={{ headerShown: true, title: 'Group', headerBackTitle: 'Back' }} />
               <Stack.Screen name="join/[code]" options={{ headerShown: true, title: 'Group invite', headerBackTitle: 'Back' }} />
             </Stack>
+            <NotificationBanner />
             <StatusBar style="auto" />
           </ThemeProvider>
         </PaperProvider>
