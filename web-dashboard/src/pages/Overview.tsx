@@ -22,7 +22,7 @@ export function OverviewPage() {
         <Stat label="Online now" value={data ? formatNumber(data.onlineNow) : '—'} hint="Wallets with an open connection" icon={<Radio className="size-4" />} />
         <Stat label="Groups" value={data ? formatNumber(data.groups) : '—'} hint={data ? `${formatNumber(data.directConversations)} direct chats` : undefined} icon={<UsersRound className="size-4" />} />
         <Stat label="Messages" value={data ? formatNumber(data.messages) : '—'} hint={data ? `${formatNumber(data.messagesLast24h)} in the last 24 h` : undefined} icon={<MessagesSquare className="size-4" />} />
-        <Stat label="Payments" value={data ? formatNumber(data.payments) : '—'} hint={data ? `${formatAmount(data.paymentVolume, 2)} CHAT confirmed` : undefined} icon={<Coins className="size-4" />} />
+        <Stat label="Payments" value={data ? formatNumber(data.payments) : '—'} hint={data ? `In chats, all assets · ${formatAmount(data.paymentVolume, 2)} CHAT of it` : undefined} icon={<Coins className="size-4" />} />
         <Stat label="Anchor batches" value={data ? formatNumber(data.anchorBatches) : '—'} hint="Merkle roots confirmed on-chain" icon={<Anchor className="size-4" />} />
         <Stat label="Waiting for anchor" value={data ? formatNumber(data.unanchoredMessages) : '—'} hint="Messages not in a batch yet" icon={<Anchor className="size-4" />} />
         <Stat label="Block height" value={data?.blockNumber != null ? formatNumber(data.blockNumber) : '—'} hint="Latest block seen" icon={<Blocks className="size-4" />} />

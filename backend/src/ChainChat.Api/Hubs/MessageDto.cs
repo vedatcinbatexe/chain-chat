@@ -39,16 +39,17 @@ public sealed record MessageDto(
 
 /// <summary>
 /// The server's view of a payment claim (SDD §6.4). Apps also check the receipt on-chain themselves.
-/// Amount is the on-chain amount in wei (decimal string), known once confirmed.
+/// Amount is the on-chain amount in wei (decimal string) and Asset the asset that was paid, both known once confirmed.
 /// </summary>
-public sealed record PaymentDto(string TxHash, string Status, string? Amount, long? BlockNumber, string? FailureReason)
+public sealed record PaymentDto(string TxHash, string Status, string? Amount, long? BlockNumber, string? FailureReason, string? Asset)
 {
     public static PaymentDto From(Payment p) => new(
         p.TxHash,
         p.Status.ToString(),
         p.Status == PaymentStatus.Confirmed ? p.Amount.ToString(CultureInfo.InvariantCulture) : null,
         p.BlockNumber,
-        p.FailureReason);
+        p.FailureReason,
+        p.Status == PaymentStatus.Confirmed ? p.Asset ?? "CHAT" : null);
 }
 
 /// <summary>Pushed when a payment is confirmed or fails.</summary>

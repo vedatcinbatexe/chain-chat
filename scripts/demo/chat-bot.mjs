@@ -7,7 +7,10 @@ import { API, chain, conversationIdFor, demoUser, deployment, hashMessage, nacl,
 
 const { bytesToHex, hexToBytes, hexToString, stringToHex, recoverMessageAddress, parseAbi, parseEventLogs, formatUnits } = viem;
 const { name, account, encSecret } = demoUser(process.argv[2] ?? 'bob');
-const chatToken = deployment.ChatToken.address;
+// Token contract (lowercase) → symbol, for the tokens deployed on this chain.
+const tokens = Object.fromEntries(
+  [['CHAT', 'ChatToken'], ['tUSD', 'TestUSD'], ['tBTC', 'TestBTC']].filter(([, name]) => deployment[name]).map(([symbol, name]) => [deployment[name].address.toLowerCase(), symbol]),
+);
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), `[@${name}]`, ...a);
 
 async function signIn() {
@@ -146,15 +149,24 @@ connection.on('MessageReceived', async (m) => {
   let payment = null;
   try { payment = JSON.parse(text); } catch {}
   if (payment?.$chainchat === 'payment') {
-    log(`  payment claim: ${formatUnits(BigInt(payment.amount), 18)} CHAT, tx ${payment.txHash.slice(0, 12)}… — checking the receipt on-chain`);
+    const claimed = payment.token ?? 'CHAT';
+    log(`  payment claim: ${formatUnits(BigInt(payment.amount), 18)} ${claimed}, tx ${payment.txHash.slice(0, 12)}… — checking the transaction on-chain`);
     const receipt = await chain.waitForTransactionReceipt({ hash: payment.txHash });
-    const received = parseEventLogs({ abi: parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']), eventName: 'Transfer', logs: receipt.logs })
-      .filter((l) => l.address.toLowerCase() === chatToken.toLowerCase() && l.args.from.toLowerCase() === m.sender.toLowerCase() && l.args.to.toLowerCase() === account.address.toLowerCase())
-      .reduce((sum, l) => sum + l.args.value, 0n);
-    log(`  on-chain: ${receipt.status}, received ${formatUnits(received, 18)} CHAT in block ${receipt.blockNumber}`);
-    replyText = received > 0n
-      ? `🤖 Thanks @${peer.username}! I verified ${formatUnits(received, 18)} CHAT on-chain (block ${receipt.blockNumber}).${payment.note ? ` Your note: "${payment.note}"` : ''}`
-      : `🤖 Hmm — that transaction did not send me any CHAT. Nice try.`;
+    const fromSenderToMe = (from, to) => from.toLowerCase() === m.sender.toLowerCase() && to.toLowerCase() === account.address.toLowerCase();
+
+    // What the transaction really paid me: Transfer events of the supported tokens, and the ETH it carried.
+    const paid = parseEventLogs({ abi: parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']), eventName: 'Transfer', logs: receipt.logs })
+      .filter((l) => tokens[l.address.toLowerCase()] && fromSenderToMe(l.args.from, l.args.to))
+      .map((l) => ({ asset: tokens[l.address.toLowerCase()], value: l.args.value }));
+    const tx = await chain.getTransaction({ hash: payment.txHash });
+    if (tx.to && tx.value > 0n && fromSenderToMe(tx.from, tx.to)) paid.push({ asset: 'ETH', value: tx.value });
+
+    const asset = paid[0]?.asset;
+    const received = paid.filter((p) => p.asset === asset).reduce((sum, p) => sum + p.value, 0n);
+    log(`  on-chain: ${receipt.status}, received ${asset ? `${formatUnits(received, 18)} ${asset}` : 'nothing'} in block ${receipt.blockNumber}`);
+    replyText = receipt.status === 'success' && received > 0n
+      ? `🤖 Thanks @${peer.username}! I verified ${formatUnits(received, 18)} ${asset} on-chain (block ${receipt.blockNumber}).${payment.note ? ` Your note: "${payment.note}"` : ''}`
+      : `🤖 Hmm — that transaction did not send me anything. Nice try.`;
   }
 
   // Group extras: react to the message and show "typing…" for a moment.

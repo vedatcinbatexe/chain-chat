@@ -120,6 +120,8 @@ export interface PaymentRow {
   to: string;
   toUsername: string | null;
   amount: string | null;
+  /** The asset that was paid, once confirmed. */
+  asset: string | null;
   status: 'Pending' | 'Confirmed' | 'Failed';
   failureReason: string | null;
   blockNumber: number | null;

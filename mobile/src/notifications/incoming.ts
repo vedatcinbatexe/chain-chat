@@ -29,7 +29,7 @@ export function previewOf(text: string | null): { body: string; payment: boolean
   const payment = parsePaymentPayload(text);
   if (payment) {
     const amount = Number(formatUnits(BigInt(payment.amount), 18)).toLocaleString(undefined, { maximumFractionDigits: 4 });
-    return { body: `💸 Sent you ${amount} CHAT${payment.note ? ` — ${payment.note}` : ''}`, payment: true };
+    return { body: `💸 Sent you ${amount} ${payment.token}${payment.note ? ` — ${payment.note}` : ''}`, payment: true };
   }
   return { body: text.length > MAX_PREVIEW_LENGTH ? `${text.slice(0, MAX_PREVIEW_LENGTH)}…` : text, payment: false };
 }

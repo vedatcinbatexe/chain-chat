@@ -3,11 +3,16 @@ using ChainChat.Core.Crypto;
 
 namespace ChainChat.Core.Payments;
 
-/// <summary>A ChatToken Transfer event decoded from a transaction receipt.</summary>
-public sealed record TokenTransfer(string From, string To, BigInteger Value);
+/// <summary>
+/// An asset that moved in a transaction: an ERC-20 Transfer event of a supported token, or the ETH the
+/// transaction itself carried.
+/// </summary>
+/// <param name="Asset">The asset's symbol: ETH, CHAT, tUSD, …</param>
+public sealed record TokenTransfer(string From, string To, BigInteger Value, string Asset = "CHAT");
 
 /// <summary>What the receipt of a claimed payment transaction shows.</summary>
-public sealed record PaymentReceipt(bool Succeeded, long BlockNumber, IReadOnlyList<TokenTransfer> ChatTokenTransfers);
+/// <param name="Transfers">Only transfers of supported assets; events of unknown tokens are left out by the caller.</param>
+public sealed record PaymentReceipt(bool Succeeded, long BlockNumber, IReadOnlyList<TokenTransfer> Transfers);
 
 public enum PaymentVerdict
 {
@@ -17,7 +22,8 @@ public enum PaymentVerdict
     Failed,
 }
 
-public sealed record PaymentCheckResult(PaymentVerdict Verdict, BigInteger Amount = default, string? FailureReason = null);
+/// <param name="Asset">For a confirmed payment: which asset was paid, as the chain shows it.</param>
+public sealed record PaymentCheckResult(PaymentVerdict Verdict, BigInteger Amount = default, string? FailureReason = null, string? Asset = null);
 
 /// <summary>
 /// Decides whether a payment claimed in a chat really happened (SDD §6.4): "the server never trusts the client's
@@ -37,13 +43,13 @@ public static class PaymentReceiptCheck
         if (!receipt.Succeeded) return new(PaymentVerdict.Failed, FailureReason: "TransactionReverted");
         if (headBlock - receipt.BlockNumber < confirmations) return new(PaymentVerdict.Pending);
 
-        // Only ChatToken transfers from the sender to the recipient count — not another token, not a third party.
-        var amount = receipt.ChatTokenTransfers
-            .Where(t => EthAddress.AreEqual(t.From, from) && EthAddress.AreEqual(t.To, to))
-            .Aggregate(BigInteger.Zero, (sum, t) => sum + t.Value);
+        // Only transfers from the sender to the recipient count — not to a third party, not from someone else.
+        var paid = receipt.Transfers.Where(t => t.Value > 0 && EthAddress.AreEqual(t.From, from) && EthAddress.AreEqual(t.To, to)).ToList();
+        if (paid.Count == 0) return new(PaymentVerdict.Failed, FailureReason: "NoMatchingTransfer");
 
-        return amount > 0
-            ? new(PaymentVerdict.Confirmed, amount)
-            : new(PaymentVerdict.Failed, FailureReason: "NoMatchingTransfer");
+        // A payment is in one asset: the first one the transaction paid (a normal transfer only has one).
+        var asset = paid[0].Asset;
+        var amount = paid.Where(t => t.Asset == asset).Aggregate(BigInteger.Zero, (sum, t) => sum + t.Value);
+        return new(PaymentVerdict.Confirmed, amount, Asset: asset);
     }
 }

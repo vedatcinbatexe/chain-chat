@@ -63,7 +63,7 @@ export function Composer({ conversationId, value, onChange, onSend, connected, o
   return (
     <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: theme.colors.background, borderTopColor: theme.colors.outlineVariant }]}>
       {onPay && (
-        <IconButton icon="cash-fast" mode="contained-tonal" size={22} style={styles.button} onPress={onPay} disabled={!connected || payDisabled} accessibilityLabel="Send CHAT" />
+        <IconButton icon="cash-fast" mode="contained-tonal" size={22} style={styles.button} onPress={onPay} disabled={!connected || payDisabled} accessibilityLabel="Send a payment" />
       )}
       <TextInput
         mode="outlined"

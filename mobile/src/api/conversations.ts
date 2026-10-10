@@ -30,6 +30,8 @@ export interface ReactionSummary {
 export interface PaymentDto {
   txHash: Hex;
   status: 'Pending' | 'Confirmed' | 'Failed';
+  /** The asset that was paid (ETH, CHAT, tUSD, …), once confirmed. */
+  asset?: string | null;
   /** On-chain amount in wei (decimal string), once confirmed. */
   amount: string | null;
   blockNumber: number | null;

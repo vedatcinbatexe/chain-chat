@@ -9,7 +9,7 @@ import type { Address, Hex } from 'viem';
 import { useMessages } from '@/api/conversations';
 import { useSystemInfo } from '@/api/system';
 import { describeSendFailure } from '@/api/errors';
-import { transferChat } from '@/chain/chatToken';
+import { submitAssetTransfer, type Asset } from '@/chain/assets';
 import { addMessageToCache, loadPresence, toggleReaction, useChatConnectionStore } from '@/chat/connection';
 import { describeTyping, useIsOnline, useTypingAddresses } from '@/chat/liveStore';
 import { formatPaymentPayload } from '@/chat/payment';
@@ -98,9 +98,10 @@ export default function ChatScreen() {
   };
 
   /** SDD §6.4: transfer on-chain from this wallet first, then announce it in the chat with the tx hash. */
-  const sendPayment = async (amount: bigint, note: string) => {
-    const txHash = await transferChat(system.data!, peer.address, amount);
-    send(formatPaymentPayload({ amount: amount.toString(), txHash, ...(note ? { note } : {}) }), undefined, txHash);
+  const sendPayment = async (asset: Asset, amount: bigint, note: string) => {
+    const txHash = await submitAssetTransfer(system.data!, asset, peer.address, amount);
+    send(formatPaymentPayload({ token: asset.symbol, amount: amount.toString(), txHash, ...(note ? { note } : {}) }), undefined, txHash);
+    queryClient.invalidateQueries({ queryKey: ['balances'] });
   };
 
   const react = (message: VerifiedMessage, emoji: string) => {
@@ -209,7 +210,7 @@ export default function ChatScreen() {
         }}
         connected={connected}
         onPay={() => setPaying(true)}
-        payDisabled={!system.data?.contracts.ChatToken}
+        payDisabled={!system.data?.assets?.length}
       />
 
       <VerifySheet message={selected} peerUsername={peer.username} onDismiss={() => setSelected(null)} />

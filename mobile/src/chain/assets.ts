@@ -48,23 +48,28 @@ export async function resolveRecipient(system: SystemInfo, input: string): Promi
 }
 
 /**
+ * Signs and submits a transfer of `amount` (wei) from this wallet to `to`; resolves with the transaction hash as
+ * soon as it is submitted. In-chat payments use this and let both phones watch the receipt.
+ */
+export async function submitAssetTransfer(system: SystemInfo, asset: Asset, to: Address, amount: bigint): Promise<Hex> {
+  const publicClient = getPublicClient(system);
+  const account = getAccount();
+  const wallet = createWalletClient({ account, chain: publicClient.chain, transport: http(env.rpcUrl) });
+
+  if (!asset.address) return wallet.sendTransaction({ to, value: amount, chain: publicClient.chain ?? null });
+  // Simulate first: reverts (e.g. not enough balance) come back as readable errors before any gas is spent.
+  const { request } = await publicClient.simulateContract({ account, address: asset.address, abi: erc20Abi, functionName: 'transfer', args: [to, amount] });
+  return wallet.writeContract(request);
+}
+
+/**
  * Sends `amount` (wei) of an asset from this wallet to `to` and waits until it is mined. Afterwards the server is
  * told the transaction hash; it reads the transfer from the chain itself, records it and notifies the recipient.
  * That report is a courtesy: the transfer is final whether or not it succeeds.
  */
 export async function sendAsset(system: SystemInfo, asset: Asset, to: Address, amount: bigint): Promise<Hex> {
   const publicClient = getPublicClient(system);
-  const account = getAccount();
-  const wallet = createWalletClient({ account, chain: publicClient.chain, transport: http(env.rpcUrl) });
-
-  let hash: Hex;
-  if (asset.address) {
-    // Simulate first: reverts (e.g. not enough balance) come back as readable errors before any gas is spent.
-    const { request } = await publicClient.simulateContract({ account, address: asset.address, abi: erc20Abi, functionName: 'transfer', args: [to, amount] });
-    hash = await wallet.writeContract(request);
-  } else {
-    hash = await wallet.sendTransaction({ to, value: amount, chain: publicClient.chain ?? null });
-  }
+  const hash = await submitAssetTransfer(system, asset, to, amount);
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error('The transaction was reverted.');

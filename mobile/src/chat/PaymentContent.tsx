@@ -8,8 +8,8 @@ import { usePaymentCheck } from './usePaymentCheck';
 
 const FAILURES = {
   TransactionNotFound: 'Transaction not found on-chain',
-  TransactionReverted: 'Transaction reverted — no CHAT was sent',
-  NoMatchingTransfer: 'No CHAT transfer to the recipient in this transaction — fake payment claim',
+  TransactionReverted: 'Transaction reverted — nothing was sent',
+  NoMatchingTransfer: 'This transaction does not pay the recipient — fake payment claim',
 } as const;
 
 const format = (wei: bigint) => Number(formatUnits(wei, 18)).toLocaleString(undefined, { maximumFractionDigits: 4 });
@@ -23,13 +23,15 @@ export function PaymentContent({ payload, dto, recipient, color }: { payload: Pa
   const claimed = BigInt(payload.amount);
   const result = check.data;
   const shownAmount = result?.status === 'confirmed' ? result.amount : claimed;
+  // Until the chain confirms, the asset is the sender's claim; afterwards it is what the chain shows.
+  const shownAsset = result?.status === 'confirmed' ? result.asset : payload.token;
 
   return (
     <View style={styles.container}>
       <View style={styles.row}>
         <Icon source="cash-fast" size={22} color={color} />
         <Text variant="headlineSmall" style={[styles.amount, { color }]}>
-          {format(shownAmount)} CHAT
+          {format(shownAmount)} {shownAsset}
         </Text>
       </View>
       {payload.note && <Text style={{ color, fontStyle: 'italic' }}>“{payload.note}”</Text>}
@@ -59,9 +61,9 @@ export function PaymentContent({ payload, dto, recipient, color }: { payload: Pa
         )}
       </View>
 
-      {result?.status === 'confirmed' && result.amount !== claimed && (
+      {result?.status === 'confirmed' && (result.amount !== claimed || result.asset !== payload.token) && (
         <Text variant="labelSmall" style={{ color }}>
-          ⚠ Claimed {format(claimed)} CHAT, but the on-chain transfer is {format(result.amount)} CHAT
+          ⚠ Claimed {format(claimed)} {payload.token}, but the on-chain transfer is {format(result.amount)} {result.asset}
         </Text>
       )}
     </View>

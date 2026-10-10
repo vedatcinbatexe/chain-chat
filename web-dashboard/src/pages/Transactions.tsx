@@ -13,7 +13,7 @@ const STATUS_TONE = { Confirmed: 'green', Pending: 'amber', Submitted: 'amber', 
 const PAYMENTS: Column<PaymentRow>[] = [
   { header: 'From', cell: (p) => <UserCell address={p.from} username={p.fromUsername} /> },
   { header: 'To', cell: (p) => <UserCell address={p.to} username={p.toUsername} /> },
-  { header: 'Amount', align: 'right', cell: (p) => (p.amount ? `${formatAmount(p.amount, 2)} CHAT` : '—') },
+  { header: 'Amount', align: 'right', cell: (p) => (p.amount ? `${formatAmount(p.amount)} ${p.asset ?? 'CHAT'}` : '—') },
   {
     header: 'Status',
     cell: (p) => (
@@ -76,7 +76,7 @@ const ANCHORS: Column<AnchorRow>[] = [
 ];
 
 const TABS = [
-  { key: 'payments', label: 'Payments', hint: 'CHAT sent between users inside chats, confirmed from on-chain receipts.' },
+  { key: 'payments', label: 'Payments', hint: 'ETH and tokens sent between users inside chats, confirmed from the on-chain transaction.' },
   { key: 'transfers', label: 'Deposits & withdrawals', hint: 'Assets moved between the exchange portal and ChainChat wallets, and transfers sent from the app. Read from the chain.' },
   { key: 'fundings', label: 'Admin funding', hint: 'Balance added by admins from this dashboard.' },
   { key: 'drips', label: 'Gas drips', hint: 'One-time test ETH sent to new wallets so they can register.' },
