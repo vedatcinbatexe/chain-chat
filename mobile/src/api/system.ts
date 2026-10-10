@@ -9,6 +9,8 @@ export interface SystemInfo {
   chainId: number;
   /** Deployed contract addresses by name: Registry, ChatToken, ClassBadge, Anchor. Empty before deployment. */
   contracts: Partial<Record<'Registry' | 'ChatToken' | 'ClassBadge' | 'Anchor', Address>>;
+  /** The block each contract was deployed in (or shortly before): where reading its events starts. */
+  deployBlocks?: Partial<Record<'Registry' | 'ChatToken' | 'ClassBadge' | 'Anchor', number>>;
 }
 
 export const getSystemInfo = () => apiRequest<SystemInfo>('/api/v1/system/info');
