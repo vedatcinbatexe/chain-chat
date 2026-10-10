@@ -73,6 +73,7 @@ public static class AdminEndpoints
         admin.MapGet("/transactions/drips", ListDrips);
         admin.MapGet("/transactions/anchors", ListAnchors);
         admin.MapGet("/transactions/fundings", ListFundings);
+        admin.MapGet("/transactions/transfers", ListTransfers);
         admin.MapPost("/funding", Fund);
 
         admin.MapGet("/admins", ListAdmins);
@@ -215,7 +216,7 @@ public static class AdminEndpoints
         }).ToList(), total, p, size));
     }
 
-    private static async Task<IResult> GetUser(string address, ChainChatDbContext db, PresenceTracker presence, AdminService admins, AdminFundingService funding, IBadgeReader badgeService, CancellationToken ct)
+    private static async Task<IResult> GetUser(string address, ChainChatDbContext db, PresenceTracker presence, AdminService admins, AdminFundingService funding, IBadgeReader badgeService, AssetCatalog catalog, CancellationToken ct)
     {
         if (!EthAddress.IsValid(address)) return Problem(400, "InvalidAddress");
         var normalized = EthAddress.Normalize(address);
@@ -229,9 +230,11 @@ public static class AdminEndpoints
 
         AccountBalances? balances = null;
         var badges = new List<object>();
+        var assets = new List<object>();
         try
         {
             balances = await funding.GetBalancesAsync(normalized, ct);
+            foreach (var (symbol, amount) in await catalog.BalancesAsync(normalized, ct)) assets.Add(new { symbol, amount = amount.ToString(CultureInfo.InvariantCulture) });
             if (badgeService.ContractAddress is { } badgeContract)
             {
                 foreach (var type in await badgeService.TypesAsync(badgeContract, ct))
@@ -260,6 +263,7 @@ public static class AdminEndpoints
             ban = ban is null ? null : new { reason = ban.Reason, bannedBy = EthAddress.ToChecksum(ban.BannedBy), bannedAt = ban.CreatedAt },
             balances = balances is null ? null : new { eth = balances.Eth.ToString(CultureInfo.InvariantCulture), chat = balances.Chat?.ToString(CultureInfo.InvariantCulture), badges = (int?)balances.Badges },
             badges,
+            assets,
             messages = await db.Messages.CountAsync(m => m.Sender == normalized, ct),
             conversations = await db.Participants.CountAsync(m => m.Address == normalized && m.RemovedAt == null, ct),
             paymentsSent = await db.Payments.CountAsync(x => x.From == normalized && x.Status == PaymentStatus.Confirmed, ct),
@@ -574,6 +578,37 @@ public static class AdminEndpoints
             .ToListAsync(ct);
 
         return Results.Ok(new Paged<object>(rows.Select(r => PresentFunding(r.Funding, r.Username)).ToList(), total, p, size));
+    }
+
+    private static async Task<IResult> ListTransfers(int? page, int? pageSize, ChainChatDbContext db, CancellationToken ct)
+    {
+        var (p, size) = Paging(page, pageSize);
+        var total = await db.AssetTransfers.CountAsync(ct);
+        var rows = await db.AssetTransfers.AsNoTracking().OrderByDescending(t => t.CreatedAt).Skip((p - 1) * size).Take(size)
+            .Select(t => new
+            {
+                Transfer = t,
+                FromUsername = db.Users.Where(u => u.Address == t.From).Select(u => u.Username).FirstOrDefault(),
+                ToUsername = db.Users.Where(u => u.Address == t.To).Select(u => u.Username).FirstOrDefault(),
+                FromExchange = db.ExchangeWallets.Where(w => w.Address == t.From).Select(w => w.Label).FirstOrDefault(),
+                ToExchange = db.ExchangeWallets.Where(w => w.Address == t.To).Select(w => w.Label).FirstOrDefault(),
+            })
+            .ToListAsync(ct);
+
+        return Results.Ok(new Paged<object>(rows.Select(r => (object)new
+        {
+            txHash = r.Transfer.TxHash,
+            from = EthAddress.ToChecksum(r.Transfer.From),
+            fromUsername = r.FromUsername,
+            fromExchangeWallet = r.FromExchange,
+            to = EthAddress.ToChecksum(r.Transfer.To),
+            toUsername = r.ToUsername,
+            toExchangeWallet = r.ToExchange,
+            asset = r.Transfer.Asset,
+            amount = r.Transfer.Amount.ToString(CultureInfo.InvariantCulture),
+            kind = r.Transfer.Kind.ToString(),
+            createdAt = r.Transfer.CreatedAt,
+        }).ToList(), total, p, size));
     }
 
     private static async Task<IResult> Fund(FundRequest request, HttpContext context, AdminFundingService funding, IUserNotifier notifier, CancellationToken ct)

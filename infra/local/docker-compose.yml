@@ -1,6 +1,6 @@
 # ChainChat — local development environment
 #
-# Default services:                     postgres, anvil, contracts-deployer (one-off), api, dashboard
+# Default services:                     postgres, anvil, contracts-deployer (one-off), api, dashboard, exchange
 # Optional services (profile "extras"): redis, rabbitmq
 #
 #   docker compose up -d --build             # whole stack (rebuilds the API image)
@@ -119,6 +119,21 @@ services:
       API_UPSTREAM: http://api:8080
     ports:
       - "${DASHBOARD_PORT:-5173}:80"
+
+  # Simulated exchange portal (React): create wallets with test balances, deposit into ChainChat, receive withdrawals.
+  # Demo only — its API needs no login and exists only because Exchange__Enabled is on in Development.
+  exchange:
+    build:
+      context: ../../web-exchange
+    image: chainchat-exchange:local
+    container_name: chainchat-exchange
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      API_UPSTREAM: http://api:8080
+    ports:
+      - "${EXCHANGE_PORT:-5174}:80"
 
   redis:
     image: redis:7-alpine

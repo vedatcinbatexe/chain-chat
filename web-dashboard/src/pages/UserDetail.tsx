@@ -92,9 +92,12 @@ export function UserDetailPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-            <Stat label="ETH balance" value={data.balances ? formatAmount(data.balances.eth) : '—'} hint="Read from the chain, for gas" />
-            <Stat label="CHAT balance" value={data.balances ? formatAmount(data.balances.chat, 2) : '—'} hint="ERC-20 balanceOf" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {data.assets.length > 0 ? (
+              data.assets.map((asset) => <Stat key={asset.symbol} label={`${asset.symbol} balance`} value={formatAmount(asset.amount)} hint={asset.symbol === 'ETH' ? 'For gas' : 'ERC-20'} />)
+            ) : (
+              <Stat label="Balances" value="—" hint="The chain is not reachable" />
+            )}
             <Stat label="Badges" value={data.balances?.badges ?? '—'} hint={data.badges.length ? data.badges.map((b) => (b.count > 1 ? `${b.name} ×${b.count}` : b.name)).join(', ') : 'ERC-721, for gated groups'} />
             <Stat label="Messages sent" value={formatNumber(data.messages)} hint={`${data.conversations} conversations`} />
             <Stat label="Payments" value={formatNumber(data.paymentsSent + data.paymentsReceived)} hint={`${data.paymentsSent} sent · ${data.paymentsReceived} received`} />

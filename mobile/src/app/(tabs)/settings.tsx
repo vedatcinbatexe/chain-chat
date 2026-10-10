@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chip, Dialog, Divider, HelperText, Portal, Text, TextInput, useTheme } from 'react-native-paper';
@@ -27,6 +28,7 @@ const CONNECTION_LABELS = {
 export default function SettingsScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const address = useWalletStore((state) => state.address);
   const encryptionPublicKey = useWalletStore((state) => state.encryptionPublicKey);
   const removeWallet = useWalletStore((state) => state.remove);
@@ -126,6 +128,17 @@ export default function SettingsScreen() {
 
       <SectionCard title="Assets" icon="wallet-outline" subtitle="Read directly from the blockchain">
         <TokenBalances address={address} />
+        <View style={styles.actionsRow}>
+          <Button mode="contained" icon="bank-transfer-out" style={styles.actionButton} onPress={() => router.push({ pathname: '/send', params: { to: 'exchange' } })}>
+            Withdraw
+          </Button>
+          <Button mode="contained-tonal" icon="send-outline" style={styles.actionButton} onPress={() => router.push({ pathname: '/send', params: { to: 'address' } })}>
+            Send
+          </Button>
+        </View>
+        <Text variant="labelSmall" style={[styles.centered, { color: theme.colors.onSurfaceVariant }]}>
+          Withdraw to your wallet on the exchange portal, or send to any address. To deposit, use the portal with your username.
+        </Text>
         {system.data?.contracts.ChatToken && (
           <Button mode="contained-tonal" icon="water" onPress={onFaucet} loading={faucet.busy} disabled={faucet.busy}>
             Get 100 test CHAT
@@ -283,5 +296,7 @@ const styles = StyleSheet.create({
   contracts: { gap: 8 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   footer: { marginTop: 4 },
+  actionsRow: { flexDirection: 'row', gap: 8 },
+  actionButton: { flex: 1 },
   dialogInput: { marginTop: 12 },
 });

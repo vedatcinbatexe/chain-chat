@@ -16,14 +16,15 @@ import { useWalletStore } from '@/wallet/walletStore';
 const ICONS: Record<ActivityKind, string> = {
   registered: 'account-check-outline',
   'key-updated': 'key-change',
-  'chat-sent': 'arrow-top-right',
-  'chat-received': 'arrow-bottom-left',
-  'chat-faucet': 'water',
-  'chat-minted': 'cash-plus',
+  'token-sent': 'arrow-top-right',
+  'token-received': 'arrow-bottom-left',
+  'token-faucet': 'water',
+  'token-minted': 'cash-plus',
   'badge-minted': 'certificate-outline',
   'badge-received': 'certificate-outline',
   'badge-sent': 'certificate-outline',
   'eth-received': 'ethereum',
+  'eth-sent': 'arrow-top-right',
 };
 
 const amountOf = (wei: bigint | undefined) => (wei === undefined ? '' : Number(formatUnits(wei, 18)).toLocaleString(undefined, { maximumFractionDigits: 4 }));
@@ -36,14 +37,14 @@ function describe(item: ActivityItem): string {
       return `Registered the username @${item.username}`;
     case 'key-updated':
       return 'Updated the encryption key';
-    case 'chat-sent':
-      return `Sent ${amountOf(item.amount)} CHAT to ${who(item)}`;
-    case 'chat-received':
-      return `Received ${amountOf(item.amount)} CHAT from ${who(item)}`;
-    case 'chat-faucet':
-      return `Claimed ${amountOf(item.amount)} CHAT from the faucet`;
-    case 'chat-minted':
-      return `Received ${amountOf(item.amount)} CHAT from an administrator`;
+    case 'token-sent':
+      return `Sent ${amountOf(item.amount)} ${item.symbol} to ${who(item)}`;
+    case 'token-received':
+      return `Received ${amountOf(item.amount)} ${item.symbol} from ${who(item)}`;
+    case 'token-faucet':
+      return `Claimed ${amountOf(item.amount)} ${item.symbol} from the faucet`;
+    case 'token-minted':
+      return `Received ${amountOf(item.amount)} ${item.symbol} (newly minted)`;
     case 'badge-minted':
       return `Received the ${item.badge?.name} badge from an administrator`;
     case 'badge-received':
@@ -51,7 +52,9 @@ function describe(item: ActivityItem): string {
     case 'badge-sent':
       return `Transferred the ${item.badge?.name} badge to ${who(item)}`;
     case 'eth-received':
-      return `Received ${amountOf(item.amount)} ETH for gas`;
+      return `Received ${amountOf(item.amount)} ETH`;
+    case 'eth-sent':
+      return `Sent ${amountOf(item.amount)} ETH to ${who(item)}`;
   }
 }
 

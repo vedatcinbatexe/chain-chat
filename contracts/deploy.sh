@@ -16,7 +16,7 @@ RPC_URL="${RPC_URL:-http://localhost:8545}"
 forge script script/Deploy.s.sol --rpc-url "$RPC_URL" --broadcast
 
 mkdir -p ../shared/deployments/abi
-for contract in Registry ChatToken ClassBadge Anchor; do
+for contract in Registry ChatToken ClassBadge Anchor TestToken; do
   forge inspect "$contract" abi --json > "../shared/deployments/abi/$contract.json"
 done
 echo "ABIs exported to shared/deployments/abi/"

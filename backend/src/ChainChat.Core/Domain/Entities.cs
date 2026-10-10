@@ -253,3 +253,48 @@ public class Announcement
     public int OnlineRecipients { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+// ---- Assets and the exchange portal (SDD §4.5) ----
+
+public enum AssetTransferKind
+{
+    /// <summary>Balance created by the server: a token mint, or test ETH from the funder.</summary>
+    Funding,
+    /// <summary>From an exchange wallet into a ChainChat wallet.</summary>
+    Deposit,
+    /// <summary>From a ChainChat wallet to an exchange wallet.</summary>
+    Withdrawal,
+    /// <summary>From a ChainChat wallet to any other address.</summary>
+    Transfer,
+}
+
+/// <summary>
+/// A transaction that moved an asset, kept as history for the portal and the dashboard. It is a log, not a ledger:
+/// balances are always read from the chain.
+/// </summary>
+public class AssetTransfer
+{
+    public required string TxHash { get; set; }
+    public required string From { get; set; }
+    public required string To { get; set; }
+    /// <summary>The asset's symbol, e.g. ETH, CHAT, tUSD.</summary>
+    public required string Asset { get; set; }
+    /// <summary>Amount in the smallest unit (wei).</summary>
+    public BigInteger Amount { get; set; }
+    public AssetTransferKind Kind { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>
+/// A wallet of the simulated exchange. The server holds its key, as an exchange holds its customers' wallets — it
+/// is a demo wallet on the local chain and never a user's ChainChat wallet, whose key stays on the phone.
+/// </summary>
+public class ExchangeWallet
+{
+    public required string Address { get; set; }
+    /// <summary>The portal account (a name the visitor chose) the wallet belongs to.</summary>
+    public required string Owner { get; set; }
+    public required string Label { get; set; }
+    public required string PrivateKey { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}

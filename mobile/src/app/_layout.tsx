@@ -40,6 +40,7 @@ export default function RootLayout() {
               <Stack.Screen name="user/[address]" options={{ headerShown: true, title: 'Profile', headerBackTitle: 'Back' }} />
               <Stack.Screen name="chat/[address]" options={{ headerShown: true, title: 'Chat', headerBackTitle: 'Chats' }} />
               <Stack.Screen name="group/[id]" options={{ headerShown: true, title: 'Group', headerBackTitle: 'Back' }} />
+              <Stack.Screen name="send" options={{ headerShown: true, title: 'Withdraw / Send', headerBackTitle: 'Back' }} />
               <Stack.Screen name="join/[code]" options={{ headerShown: true, title: 'Group invite', headerBackTitle: 'Back' }} />
             </Stack>
             <NotificationBanner />

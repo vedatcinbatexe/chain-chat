@@ -26,14 +26,15 @@ const rootAnchored = anchorAbi.find((item) => item.type === 'event' && item.name
 export type ActivityKind =
   | 'registered'
   | 'key-updated'
-  | 'chat-sent'
-  | 'chat-received'
-  | 'chat-faucet'
-  | 'chat-minted'
+  | 'token-sent'
+  | 'token-received'
+  | 'token-faucet'
+  | 'token-minted'
   | 'badge-minted'
   | 'badge-received'
   | 'badge-sent'
-  | 'eth-received';
+  | 'eth-received'
+  | 'eth-sent';
 
 export interface ActivityItem {
   id: string;
@@ -43,8 +44,10 @@ export interface ActivityItem {
   logIndex: number;
   /** Block time in milliseconds; null if the block could not be read. */
   timestamp: number | null;
-  /** CHAT or ETH amount in wei. */
+  /** Token or ETH amount in wei. */
   amount?: bigint;
+  /** The asset the amount is in: ETH, CHAT, tUSD, … */
+  symbol?: string;
   counterparty?: Address;
   /** The counterparty's username from the Registry contract, if registered. */
   counterpartyName?: string | null;
@@ -62,12 +65,12 @@ export interface AnchorActivity {
   timestamp: number | null;
 }
 
-/** What a CHAT Transfer event means for `me`. Mints come from the zero address: the faucet, or an admin. */
+/** What an ERC-20 Transfer event means for `me`. Mints come from the zero address: the faucet, or an admin or the exchange. */
 export function classifyTokenTransfer(transfer: { from: Address; to: Address; txHash: Hex }, me: Address, faucetTxs: ReadonlySet<string>): { kind: ActivityKind; counterparty?: Address } {
   const mine = me.toLowerCase();
-  if (transfer.from.toLowerCase() === mine) return { kind: 'chat-sent', counterparty: transfer.to };
-  if (transfer.from === zeroAddress) return { kind: faucetTxs.has(transfer.txHash.toLowerCase()) ? 'chat-faucet' : 'chat-minted' };
-  return { kind: 'chat-received', counterparty: transfer.from };
+  if (transfer.from.toLowerCase() === mine) return { kind: 'token-sent', counterparty: transfer.to };
+  if (transfer.from === zeroAddress) return { kind: faucetTxs.has(transfer.txHash.toLowerCase()) ? 'token-faucet' : 'token-minted' };
+  return { kind: 'token-received', counterparty: transfer.from };
 }
 
 /** What a badge Transfer event means for `me`. */
@@ -78,7 +81,7 @@ export function classifyBadgeTransfer(transfer: { from: Address; to: Address }, 
 
 interface EthHint {
   txHash: Hex;
-  kind: 'GasDrip' | 'AdminFunding';
+  kind: string;
 }
 
 const MAX_ITEMS = 100;
@@ -87,16 +90,25 @@ export async function readActivity(system: SystemInfo, me: Address, ethHints: Et
   const client = getPublicClient(system);
   const { Registry, ChatToken, ClassBadge } = system.contracts;
   const from = (name: 'Registry' | 'ChatToken' | 'ClassBadge') => BigInt(system.deployBlocks?.[name] ?? 0);
+  // Every ERC-20 asset (CHAT, tUSD, tBTC, …); an older backend without an asset list still gets CHAT.
+  const tokens = (system.assets ?? (ChatToken ? [{ symbol: 'CHAT', name: 'ChainChat Token', address: ChatToken, decimals: 18, deployBlock: system.deployBlocks?.ChatToken }] : [])).filter((asset) => asset.address !== null);
   const none = Promise.resolve([] as never[]);
 
-  const [registered, keys, sent, received, faucet, badgesOut, badgesIn] = await Promise.all([
+  const [registered, keys, faucet, badgesOut, badgesIn, tokenLogs] = await Promise.all([
     Registry ? client.getLogs({ address: Registry, event: userRegistered, args: { user: me }, fromBlock: from('Registry') }) : none,
     Registry ? client.getLogs({ address: Registry, event: keyUpdated, args: { user: me }, fromBlock: from('Registry') }) : none,
-    ChatToken ? client.getLogs({ address: ChatToken, event: tokenTransfer, args: { from: me }, fromBlock: from('ChatToken') }) : none,
-    ChatToken ? client.getLogs({ address: ChatToken, event: tokenTransfer, args: { to: me }, fromBlock: from('ChatToken') }) : none,
     ChatToken ? client.getLogs({ address: ChatToken, event: faucetClaimed, args: { account: me }, fromBlock: from('ChatToken') }) : none,
     ClassBadge ? client.getLogs({ address: ClassBadge, event: badgeTransfer, args: { from: me }, fromBlock: from('ClassBadge') }) : none,
     ClassBadge ? client.getLogs({ address: ClassBadge, event: badgeTransfer, args: { to: me }, fromBlock: from('ClassBadge') }) : none,
+    Promise.all(
+      tokens.map(async (token) => {
+        const [sent, received] = await Promise.all([
+          client.getLogs({ address: token.address!, event: tokenTransfer, args: { from: me }, fromBlock: BigInt(token.deployBlock ?? 0) }),
+          client.getLogs({ address: token.address!, event: tokenTransfer, args: { to: me }, fromBlock: BigInt(token.deployBlock ?? 0) }),
+        ]);
+        return { symbol: token.symbol, logs: [...sent, ...received] };
+      }),
+    ),
   ]);
 
   const base = (log: { transactionHash: Hex; blockNumber: bigint; logIndex: number }) => ({
@@ -112,10 +124,12 @@ export async function readActivity(system: SystemInfo, me: Address, ethHints: Et
   for (const log of keys) items.push({ ...base(log), kind: 'key-updated' });
 
   const faucetTxs = new Set(faucet.map((log) => log.transactionHash.toLowerCase()));
-  for (const log of [...sent, ...received]) {
-    const { from: sender, to, value } = log.args;
-    if (!sender || !to) continue;
-    items.push({ ...base(log), ...classifyTokenTransfer({ from: sender, to, txHash: log.transactionHash }, me, faucetTxs), amount: value });
+  for (const { symbol, logs } of tokenLogs) {
+    for (const log of logs) {
+      const { from: sender, to, value } = log.args;
+      if (!sender || !to) continue;
+      items.push({ ...base(log), ...classifyTokenTransfer({ from: sender, to, txHash: log.transactionHash }, me, faucetTxs), amount: value, symbol });
+    }
   }
 
   // Badges: the type of each badge is read from the contract.
@@ -132,11 +146,24 @@ export async function readActivity(system: SystemInfo, me: Address, ethHints: Et
     }
   }
 
-  // ETH sent by the server: shown only if the transaction exists on-chain and really pays this wallet.
+  // ETH transfers named by the server: shown only if the transaction exists on-chain and really moves ETH to or
+  // from this wallet.
   const ethTransfers = await Promise.all(ethHints.map((hint) => client.getTransaction({ hash: hint.txHash }).catch(() => null)));
   for (const tx of ethTransfers) {
-    if (!tx || tx.blockNumber === null || tx.to?.toLowerCase() !== me.toLowerCase() || tx.value === 0n) continue;
-    items.push({ id: `${tx.hash}-eth`, kind: 'eth-received', txHash: tx.hash, blockNumber: tx.blockNumber, logIndex: -1, timestamp: null, amount: tx.value, counterparty: tx.from });
+    if (!tx || tx.blockNumber === null || !tx.to || tx.value === 0n) continue;
+    const received = tx.to.toLowerCase() === me.toLowerCase();
+    if (!received && tx.from.toLowerCase() !== me.toLowerCase()) continue;
+    items.push({
+      id: `${tx.hash}-eth`,
+      kind: received ? 'eth-received' : 'eth-sent',
+      txHash: tx.hash,
+      blockNumber: tx.blockNumber,
+      logIndex: -1,
+      timestamp: null,
+      amount: tx.value,
+      symbol: 'ETH',
+      counterparty: received ? tx.from : tx.to,
+    });
   }
 
   // A transfer to yourself appears in both directions: keep one.

@@ -227,3 +227,31 @@ internal sealed class AnnouncementConfiguration : IEntityTypeConfiguration<Annou
         b.Property(a => a.Admin).HasMaxLength(Len.Address);
     }
 }
+
+internal sealed class AssetTransferConfiguration : IEntityTypeConfiguration<AssetTransfer>
+{
+    public void Configure(EntityTypeBuilder<AssetTransfer> b)
+    {
+        b.HasKey(t => t.TxHash);
+        b.Property(t => t.TxHash).HasMaxLength(Len.Hash);
+        b.Property(t => t.From).HasMaxLength(Len.Address);
+        b.Property(t => t.To).HasMaxLength(Len.Address);
+        b.Property(t => t.Asset).HasMaxLength(16);
+        b.Property(t => t.Amount).HasColumnType("numeric(78,0)");
+        b.HasIndex(t => t.From);
+        b.HasIndex(t => t.To);
+    }
+}
+
+internal sealed class ExchangeWalletConfiguration : IEntityTypeConfiguration<ExchangeWallet>
+{
+    public void Configure(EntityTypeBuilder<ExchangeWallet> b)
+    {
+        b.HasKey(w => w.Address);
+        b.Property(w => w.Address).HasMaxLength(Len.Address);
+        b.Property(w => w.Owner).HasMaxLength(32);
+        b.Property(w => w.Label).HasMaxLength(40);
+        b.Property(w => w.PrivateKey).HasMaxLength(66);
+        b.HasIndex(w => w.Owner);
+    }
+}

@@ -4,15 +4,22 @@ import type { Address } from 'viem';
 
 import { useBalances } from '@/chain/useBalances';
 
-/** ETH, CHAT and ClassBadge holdings as tiles that wrap on narrow screens. Read directly from the chain. */
+/** ETH, every ERC-20 token and badge holdings as tiles that wrap on narrow screens. Read directly from the chain. */
 export function TokenBalances({ address }: { address: Address | null | undefined }) {
   const theme = useTheme();
   const balances = useBalances(address);
   const data = balances.data;
 
+  const ICONS: Record<string, string> = { ETH: 'ethereum', CHAT: 'cash-multiple', tUSD: 'currency-usd', tBTC: 'bitcoin' };
+  // Before the first read: placeholders for the assets every deployment has.
+  const assets = data?.assets.length ? data.assets : [{ symbol: 'ETH', token: false, amount: undefined }, { symbol: 'CHAT', token: true, amount: undefined }];
   const tiles = [
-    { icon: 'ethereum', symbol: 'ETH', kind: 'Gas', value: data ? formatAmount(data.eth) : undefined },
-    { icon: 'cash-multiple', symbol: 'CHAT', kind: 'ERC-20', value: data ? (data.chat === null ? '—' : formatAmount(data.chat)) : undefined },
+    ...assets.map((asset) => ({
+      icon: ICONS[asset.symbol] ?? 'circle-multiple-outline',
+      symbol: asset.symbol,
+      kind: asset.token ? 'ERC-20' : 'Gas',
+      value: asset.amount === undefined ? undefined : formatAmount(asset.amount),
+    })),
     { icon: 'certificate-outline', symbol: 'Badges', kind: 'ERC-721', value: data ? (data.badges === null ? '—' : String(data.badges)) : undefined },
   ];
 

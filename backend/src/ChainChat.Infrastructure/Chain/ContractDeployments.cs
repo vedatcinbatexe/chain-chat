@@ -27,6 +27,8 @@ public sealed class ContractDeployments
     public const string ChatToken = "ChatToken";
     public const string ClassBadge = "ClassBadge";
     public const string Anchor = "Anchor";
+    public const string TestUSD = "TestUSD";
+    public const string TestBTC = "TestBTC";
 
     private readonly IReadOnlyDictionary<string, ContractDeployment> _contracts;
 

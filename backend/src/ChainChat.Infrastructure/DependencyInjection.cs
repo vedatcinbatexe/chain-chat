@@ -33,6 +33,14 @@ public static class DependencyInjection
         services.AddSingleton<ChainClient>();
         services.AddSingleton<ContractDeployments>();
         services.AddSingleton<IBadgeReader, BadgeService>();
+        services.AddSingleton<AssetCatalog>();
+
+        services.AddOptions<ChainChat.Infrastructure.Assets.ExchangeOptions>()
+            .Bind(configuration.GetSection(ChainChat.Infrastructure.Assets.ExchangeOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<ChainChat.Infrastructure.Assets.AssetTransferService>();
+        services.AddScoped<ChainChat.Infrastructure.Assets.ExchangeService>();
 
         services.AddOptions<GasDripOptions>()
             .Bind(configuration.GetSection(GasDripOptions.SectionName))
