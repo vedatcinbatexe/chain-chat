@@ -39,6 +39,9 @@ public static class RateLimiting
     /// <summary>Gas drip: 10 requests per hour per client IP, on top of the one-drip-per-address rule.</summary>
     public const string DripPolicy = "drip";
 
+    /// <summary>Attachment uploads (voice messages): 30 per minute per client IP.</summary>
+    public const string UploadPolicy = "upload";
+
     /// <summary>Manual anchoring trigger: 5 requests per minute per client IP (each run may send a transaction).</summary>
     public const string AnchorPolicy = "anchor";
 
@@ -55,6 +58,7 @@ public static class RateLimiting
             options.AddPolicy(AuthPolicy, context => PerIp(context, settings.AuthPermitLimit, TimeSpan.FromMinutes(1)));
             options.AddPolicy(DripPolicy, context => PerIp(context, 10, TimeSpan.FromHours(1)));
             options.AddPolicy(AnchorPolicy, context => PerIp(context, 5, TimeSpan.FromMinutes(1)));
+            options.AddPolicy(UploadPolicy, context => PerIp(context, 30, TimeSpan.FromMinutes(1)));
         });
     }
 

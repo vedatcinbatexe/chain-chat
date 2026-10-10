@@ -256,3 +256,14 @@ internal sealed class ExchangeWalletConfiguration : IEntityTypeConfiguration<Exc
         b.HasIndex(w => w.Owner);
     }
 }
+
+internal sealed class AttachmentConfiguration : IEntityTypeConfiguration<Attachment>
+{
+    public void Configure(EntityTypeBuilder<Attachment> b)
+    {
+        b.HasKey(a => a.Id);
+        b.Property(a => a.Id).HasMaxLength(32);
+        b.Property(a => a.Uploader).HasMaxLength(Len.Address);
+        b.HasIndex(a => a.Uploader);
+    }
+}

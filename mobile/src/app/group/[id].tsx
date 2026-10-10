@@ -13,6 +13,8 @@ import { addMessageToCache, loadPresence, toggleReaction, useChatConnectionStore
 import { GroupInfoSheet } from '@/chat/GroupInfoSheet';
 import { describeTyping, useLiveStore, useTypingAddresses } from '@/chat/liveStore';
 import { sendGroupMessage } from '@/chat/send';
+import { pickImageMessage } from '@/chat/sendImage';
+import { prepareVoiceMessage } from '@/chat/sendVoice';
 import { buildRows, ConnectionBar, DaySeparator, EmptyConversation, LoadingHistory, MessageBubble, PendingBubble, type PendingMessage } from '@/chat/ui/ChatParts';
 import { Composer } from '@/chat/ui/Composer';
 import { ReactionPicker } from '@/chat/ui/ReactionPicker';
@@ -244,6 +246,11 @@ export default function GroupChatScreen() {
           if (!text) return;
           setDraft('');
           send(text);
+        }}
+        onSendVoice={async (recording) => send(await prepareVoiceMessage(recording))}
+        onSendImage={async () => {
+          const picture = await pickImageMessage();
+          if (picture) send(picture);
         }}
         connected={canSend}
       />

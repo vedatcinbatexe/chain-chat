@@ -8,6 +8,7 @@ import type { SystemInfo } from '@/api/system';
 import { useSessionStore } from '@/auth/sessionStore';
 import { readRegistration } from '@/chain/registry';
 import { parsePaymentPayload } from '@/chat/payment';
+import { describeMedia } from '@/chat/image';
 import { decrypt, decryptGroupMessage, directConversationId } from '@/crypto';
 import { getEncryptionKeyPair, useWalletStore } from '@/wallet/walletStore';
 import { notify, useNotificationStore, type NotificationKind } from './store';
@@ -31,6 +32,8 @@ export function previewOf(text: string | null): { body: string; payment: boolean
     const amount = Number(formatUnits(BigInt(payment.amount), 18)).toLocaleString(undefined, { maximumFractionDigits: 4 });
     return { body: `💸 Sent you ${amount} ${payment.token}${payment.note ? ` — ${payment.note}` : ''}`, payment: true };
   }
+  const media = describeMedia(text);
+  if (media) return { body: media, payment: false };
   return { body: text.length > MAX_PREVIEW_LENGTH ? `${text.slice(0, MAX_PREVIEW_LENGTH)}…` : text, payment: false };
 }
 

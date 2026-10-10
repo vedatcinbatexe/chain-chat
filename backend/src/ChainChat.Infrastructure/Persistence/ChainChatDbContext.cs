@@ -24,6 +24,7 @@ public class ChainChatDbContext(DbContextOptions<ChainChatDbContext> options) : 
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<AssetTransfer> AssetTransfers => Set<AssetTransfer>();
     public DbSet<ExchangeWallet> ExchangeWallets => Set<ExchangeWallet>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChainChatDbContext).Assembly);

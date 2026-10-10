@@ -169,11 +169,50 @@ connection.on('MessageReceived', async (m) => {
       : `🤖 Hmm — that transaction did not send me anything. Nice try.`;
   }
 
+  // A voice message: fetch the encrypted audio, check it against the fingerprint in the signed message, decrypt it.
+  if (payment?.$chainchat === 'voice') {
+    const seconds = Math.round(payment.durationMs / 1000);
+    const length = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+    const response = await fetch(`${API}/api/v1/attachments/${payment.id}`, { headers: await authHeaders() });
+    if (!response.ok) {
+      replyText = `🤖 I got a voice message (${length}), but the audio is not on the server.`;
+    } else {
+      const blob = new Uint8Array(await response.arrayBuffer());
+      const matches = viem.keccak256(blob).toLowerCase() === String(payment.hash).toLowerCase();
+      const audio = matches ? nacl.secretbox.open(blob.subarray(24), blob.subarray(0, 24), hexToBytes(payment.key)) : null;
+      log(`  voice message ${length}: ${blob.length} bytes, fingerprint ${matches ? 'matches' : 'DOES NOT MATCH'}, ${audio ? `decrypted ${audio.length} bytes of audio` : 'not decrypted'}`);
+      replyText = !matches
+        ? `🤖 That voice message does not match its signed fingerprint — the audio was changed after you sent it.`
+        : audio
+          ? `🤖 I received your voice message (${length}, ${Math.round(audio.length / 1024)} KB). Its fingerprint matches the signed message. I cannot listen, I am a bot.`
+          : `🤖 I got a voice message (${length}), but could not decrypt the audio.`;
+    }
+  }
+
+  // A photo or GIF: the same check as for voice — fetch, compare with the signed fingerprint, decrypt.
+  if (payment?.$chainchat === 'image') {
+    const kind = payment.mime === 'image/gif' ? 'GIF' : 'photo';
+    const response = await fetch(`${API}/api/v1/attachments/${payment.id}`, { headers: await authHeaders() });
+    if (!response.ok) {
+      replyText = `🤖 I got a ${kind}, but the file is not on the server.`;
+    } else {
+      const blob = new Uint8Array(await response.arrayBuffer());
+      const matches = viem.keccak256(blob).toLowerCase() === String(payment.hash).toLowerCase();
+      const picture = matches ? nacl.secretbox.open(blob.subarray(24), blob.subarray(0, 24), hexToBytes(payment.key)) : null;
+      log(`  ${kind} ${payment.width}×${payment.height}: ${blob.length} bytes, fingerprint ${matches ? 'matches' : 'DOES NOT MATCH'}, ${picture ? `decrypted ${picture.length} bytes` : 'not decrypted'}`);
+      replyText = !matches
+        ? `🤖 That ${kind} does not match its signed fingerprint — the file was changed after you sent it.`
+        : picture
+          ? `🤖 Nice ${kind}! ${payment.width}×${payment.height}, ${Math.round(picture.length / 1024)} KB, and its fingerprint matches the signed message.`
+          : `🤖 I got a ${kind}, but could not decrypt it.`;
+    }
+  }
+
   // Group extras: react to the message and show "typing…" for a moment.
   const conversationId = group ? m.conversationId : conversationIdFor(account.address, m.sender);
   if (group) {
     await connection.invoke('React', m.id, '👍').catch((error) => log('reaction failed:', error.message));
-    replyText = `🤖 @${name} here — @${peer.username} said: "${text}"`;
+    if (payment?.$chainchat !== 'voice' && payment?.$chainchat !== 'image') replyText = `🤖 @${name} here — @${peer.username} said: "${text}"`;
   }
   // Show "typing…" for a while (re-sent every 2 s, the apps drop it after 6 s without an update).
   log('  typing…');

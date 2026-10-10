@@ -37,8 +37,10 @@ replies with its own signed, hash-chained, encrypted message.
 node scripts/demo/chat-bot.mjs bob
 ```
 
-- **Payments:** when it receives a CHAT payment message, it checks the transaction receipt on-chain before
+- **Payments:** when it receives a payment message (ETH or any token), it checks the transaction on-chain before
   thanking the sender.
+- **Voice messages, photos and GIFs:** it downloads the encrypted file, checks it against the fingerprint in the
+  signed message and decrypts it, then replies with what it received.
 - **Groups:** pass an invite link or code as the second argument and the bot joins that group first. In groups it
   also reacts with 👍. It stays a member afterwards, so the link is only needed once.
 

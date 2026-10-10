@@ -16,13 +16,11 @@ public sealed record ReactionToggle(string ConversationId, bool Added, IReadOnly
 /// </summary>
 public sealed class ReactionService(ChainChatDbContext db, TimeProvider time)
 {
-    /// <summary>A fixed set keeps reactions small and avoids storing arbitrary user text.</summary>
-    public static readonly IReadOnlySet<string> Allowed = new HashSet<string> { "👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "🙏" };
-
     /// <summary>Adds the reaction if the user has not made it yet, otherwise removes it.</summary>
     public async Task<ReactionToggle> ToggleAsync(string requester, long messageId, string emoji, CancellationToken ct)
     {
-        if (!Allowed.Contains(emoji)) throw new MessageRejectedException("ReactionNotAllowed");
+        // Any single emoji is accepted, but nothing else: reactions are stored in the clear and must not carry text.
+        if (!ChainChat.Core.Messaging.EmojiValidator.IsSingleEmoji(emoji)) throw new MessageRejectedException("ReactionNotAllowed");
         var me = EthAddress.Normalize(requester);
 
         var conversationId = await db.Messages.Where(m => m.Id == messageId).Select(m => m.ConversationId).FirstOrDefaultAsync(ct)
