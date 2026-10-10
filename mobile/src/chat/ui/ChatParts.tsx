@@ -16,6 +16,8 @@ export interface PendingMessage {
   text: string;
   paymentTxHash?: Hex;
   failed: boolean;
+  /** Why it was not sent, when the server gave a reason the user can understand. */
+  reason?: string | null;
 }
 
 export type Row =
@@ -208,9 +210,14 @@ export function PendingBubble({ pending, onRetry }: { pending: PendingMessage; o
         <View style={styles.meta}>
           <Icon source={pending.failed ? 'alert-circle-outline' : 'clock-outline'} size={13} color={color} />
           <Text variant="labelSmall" style={[styles.metaText, { color }]}>
-            {pending.failed ? 'Not sent — tap to retry' : 'Encrypting & sending…'}
+            {pending.failed ? (pending.reason ? 'Not sent' : 'Not sent — tap to retry') : 'Encrypting & sending…'}
           </Text>
         </View>
+        {pending.failed && pending.reason && (
+          <Text variant="labelSmall" style={{ color }}>
+            {pending.reason} Tap to retry.
+          </Text>
+        )}
       </View>
     </Pressable>
   );

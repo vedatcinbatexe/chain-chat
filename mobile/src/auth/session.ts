@@ -1,4 +1,5 @@
 import { requestNonce, verifySignIn } from '@/api/auth';
+import { isBanned } from '@/api/errors';
 import { formatSiweMessage } from '@/crypto';
 import { getAccount } from '@/wallet/walletStore';
 import { useSessionStore, type Session } from './sessionStore';
@@ -45,9 +46,14 @@ export function ensureSession(): Promise<Session> {
   }
 
   // Concurrent callers share one sign-in instead of each requesting a nonce.
-  pending ??= signIn().finally(() => {
-    pending = null;
-  });
+  pending ??= signIn()
+    .catch((error) => {
+      if (isBanned(error)) useSessionStore.getState().setBanned(true);
+      throw error;
+    })
+    .finally(() => {
+      pending = null;
+    });
   return pending;
 }
 

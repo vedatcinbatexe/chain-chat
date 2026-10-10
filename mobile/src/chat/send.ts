@@ -1,6 +1,8 @@
 import type { Address, Hex } from 'viem';
 
 import type { MessageDto } from '@/api/conversations';
+import { isBanned } from '@/api/errors';
+import { useSessionStore } from '@/auth/sessionStore';
 import { directConversationId, type GroupRecipient } from '@/crypto';
 import { getAccount, getEncryptionKeyPair } from '@/wallet/walletStore';
 import { loadChainHead, rebuildChainHead, saveChainHead, type ChainHead } from './chainHead';
@@ -38,7 +40,14 @@ export function sendGroupMessage(groupId: Hex, members: GroupRecipient[], text: 
 
 function enqueue(conversationId: string, compose: Compose): Promise<MessageDto> {
   const previous = queues.get(conversationId) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(() => send(conversationId, compose));
+  const next = previous
+    .catch(() => undefined)
+    .then(() => send(conversationId, compose))
+    .catch((error) => {
+      // Blocked while already signed in: show the blocked screen instead of failing message by message.
+      if (isBanned(error)) useSessionStore.getState().setBanned(true);
+      throw error;
+    });
   queues.set(conversationId, next);
   return next;
 }

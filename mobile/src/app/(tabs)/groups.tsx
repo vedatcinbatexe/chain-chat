@@ -5,6 +5,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Dialog, HelperText, Portal, Text, TextInput, useTheme } from 'react-native-paper';
 
 import { conversationsQueryKey, useConversations } from '@/api/conversations';
+import { describeError } from '@/api/errors';
 import { createGroup, groupQueryKey, parseInviteCode } from '@/api/groups';
 import { ConversationRow } from '@/chat/ui/ConversationRow';
 import { EmptyState } from '@/components/EmptyState';
@@ -40,7 +41,7 @@ export default function GroupsScreen() {
       setDialog(null);
       router.push({ pathname: '/group/[id]', params: { id: group.conversationId } });
     } catch (e) {
-      setError((e as Error).message);
+      setError(describeError(e, 'Could not create the group. Please try again.'));
     } finally {
       setBusy(false);
     }
@@ -54,7 +55,7 @@ export default function GroupsScreen() {
   };
 
   if (conversations.isPending) return <ActivityIndicator style={styles.loader} />;
-  if (conversations.isError) return <ErrorScreen message={conversations.error.message} onRetry={() => conversations.refetch()} />;
+  if (conversations.isError) return <ErrorScreen message={describeError(conversations.error, 'Could not load your groups.')} onRetry={() => conversations.refetch()} />;
 
   const groups = conversations.data.filter((c) => c.type === 'Group');
 

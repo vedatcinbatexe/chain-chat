@@ -5,6 +5,7 @@ import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, useTheme } from 'react-native-paper';
 
 import { useConversations } from '@/api/conversations';
+import { describeError } from '@/api/errors';
 import { loadPresence, useChatConnectionStore } from '@/chat/connection';
 import { ConversationRow } from '@/chat/ui/ConversationRow';
 import { EmptyState } from '@/components/EmptyState';
@@ -26,7 +27,7 @@ export default function ChatsScreen() {
   }, [connected, peers]);
 
   if (conversations.isPending) return <ActivityIndicator style={styles.loader} />;
-  if (conversations.isError) return <ErrorScreen message={conversations.error.message} onRetry={() => conversations.refetch()} />;
+  if (conversations.isError) return <ErrorScreen message={describeError(conversations.error, 'Could not load your chats.')} onRetry={() => conversations.refetch()} />;
 
   const onRefresh = async () => {
     setRefreshing(true);

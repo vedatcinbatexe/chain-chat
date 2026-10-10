@@ -8,6 +8,7 @@ import type { Address, Hex } from 'viem';
 
 import { useMessages } from '@/api/conversations';
 import { useSystemInfo } from '@/api/system';
+import { describeSendFailure } from '@/api/errors';
 import { transferChat } from '@/chain/chatToken';
 import { addMessageToCache, loadPresence, toggleReaction, useChatConnectionStore } from '@/chat/connection';
 import { describeTyping, useIsOnline, useTypingAddresses } from '@/chat/liveStore';
@@ -83,7 +84,7 @@ export default function ChatScreen() {
       })
       .catch((error) => {
         console.warn('Send failed', error);
-        setPending((previous) => previous.map((p) => (p.key === key ? { ...p, failed: true } : p)));
+        setPending((previous) => previous.map((p) => (p.key === key ? { ...p, failed: true, reason: describeSendFailure(error) } : p)));
       });
   };
 
