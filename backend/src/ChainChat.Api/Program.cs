@@ -62,6 +62,7 @@ try
     app.MapConversationEndpoints();
     app.MapAnchoringEndpoints();
     app.MapGroupEndpoints();
+    app.MapActivityEndpoints();
     app.MapAdminEndpoints();
     app.MapHub<ChatHub>(ChatHub.Path);
 

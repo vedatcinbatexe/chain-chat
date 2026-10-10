@@ -55,7 +55,7 @@ ChainChat applies the cryptographic and structural building blocks covered in BL
 | 5 | Send tokens inside a chat | ERC-20 transfers |
 | 6 | Group chat with invite links, typing, presence and reactions; optional NFT gating: the creator chooses the badge types members must hold | Member keys resolved from chain; ERC-721 ownership checked on-chain for gated groups |
 | 7 | Signed, hash-chained messages with on-chain anchoring & verification | Wallet signatures + Merkle roots stored on-chain |
-| 8 | Blockchain activity screen | Explorer links for every transaction |
+| 8 | Blockchain activity screen: the wallet's own on-chain history and recent anchor batches, rebuilt in the app from contract events | Event logs read directly from the chain; explorer links for every transaction |
 | 9 | Web admin dashboard (§4.4) | Wallet-based admin login; ERC-20 minting by the contract owner; shows what a server operator can and cannot do |
 
 ### 2.2 On-Chain vs Off-Chain Decision
