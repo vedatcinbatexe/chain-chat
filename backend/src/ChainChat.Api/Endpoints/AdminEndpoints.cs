@@ -215,7 +215,7 @@ public static class AdminEndpoints
         }).ToList(), total, p, size));
     }
 
-    private static async Task<IResult> GetUser(string address, ChainChatDbContext db, PresenceTracker presence, AdminService admins, AdminFundingService funding, BadgeService badgeService, CancellationToken ct)
+    private static async Task<IResult> GetUser(string address, ChainChatDbContext db, PresenceTracker presence, AdminService admins, AdminFundingService funding, IBadgeReader badgeService, CancellationToken ct)
     {
         if (!EthAddress.IsValid(address)) return Problem(400, "InvalidAddress");
         var normalized = EthAddress.Normalize(address);
@@ -313,7 +313,7 @@ public static class AdminEndpoints
 
     // ---- Badge types ----
 
-    private static async Task<IResult> ListBadgeTypes(BadgeService badges, ChainChatDbContext db, CancellationToken ct)
+    private static async Task<IResult> ListBadgeTypes(IBadgeReader badges, ChainChatDbContext db, CancellationToken ct)
     {
         if (badges.ContractAddress is not { } contract) return Results.Ok(new { contract = (string?)null, types = Array.Empty<object>() });
         var required = await db.Groups.AsNoTracking().Where(g => g.RequiredBadgeContract == contract).Select(g => g.RequiredBadgeTypes).ToListAsync(ct);

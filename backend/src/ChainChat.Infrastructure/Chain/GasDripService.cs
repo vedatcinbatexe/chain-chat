@@ -21,7 +21,7 @@ public sealed class GasDripOptions
     public string PrivateKey { get; set; } = "";
 
     /// <summary>ETH sent per drip — enough for registration and a few transactions.</summary>
-    [Range(typeof(decimal), "0.0001", "1")]
+    [Range(typeof(decimal), "0.0001", "1", ParseLimitsInInvariantCulture = true)]
     public decimal AmountEth { get; set; } = 0.05m;
 }
 

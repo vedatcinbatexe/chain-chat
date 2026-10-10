@@ -28,10 +28,10 @@ public sealed class AdminOptions
     public string FunderPrivateKey { get; set; } = "";
 
     /// <summary>Largest amount of ETH an admin can send in one action.</summary>
-    [Range(typeof(decimal), "0.001", "1000")]
+    [Range(typeof(decimal), "0.001", "1000", ParseLimitsInInvariantCulture = true)]
     public decimal MaxFundEth { get; set; } = 10m;
 
     /// <summary>Largest amount of CHAT an admin can mint in one action.</summary>
-    [Range(typeof(decimal), "1", "1000000000")]
+    [Range(typeof(decimal), "1", "1000000000", ParseLimitsInInvariantCulture = true)]
     public decimal MaxFundChat { get; set; } = 100_000m;
 }

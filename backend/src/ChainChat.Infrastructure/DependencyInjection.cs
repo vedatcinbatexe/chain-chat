@@ -32,7 +32,7 @@ public static class DependencyInjection
 
         services.AddSingleton<ChainClient>();
         services.AddSingleton<ContractDeployments>();
-        services.AddSingleton<BadgeService>();
+        services.AddSingleton<IBadgeReader, BadgeService>();
 
         services.AddOptions<GasDripOptions>()
             .Bind(configuration.GetSection(GasDripOptions.SectionName))

@@ -46,7 +46,7 @@ public sealed class BadgeIndexer(
     IServiceScopeFactory scopes,
     ChainClient chain,
     ContractDeployments deployments,
-    BadgeService badges,
+    IBadgeReader badges,
     IGroupNotifier notifier,
     IUserNotifier users,
     IOptions<IndexerOptions> options,
