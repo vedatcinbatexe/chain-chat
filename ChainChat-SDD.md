@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 1.8 (MVP)
+**Version:** 1.9 (MVP)
 
 ---
 
@@ -346,13 +346,13 @@ Each message is linked to the **sender's previous message in the same conversati
 7. The recipient verifies the signature and chain continuity, then decrypts locally. A gap in `seq` or a broken `prevHash` is shown as a warning ("a message from this sender is missing").
 
 ### 6.4 In-Chat Payment
-1. The user taps *Send tokens* and confirms amount, recipient and estimated gas.
-2. The app signs and sends an ERC-20 `transfer` **directly to the RPC**.
-3. The app posts a "payment" message containing the transaction hash into the chat → status *pending*.
-4. The indexer sees the `Transfer` event, matches the transaction hash, and verifies sender, recipient and amount against the receipt.
-5. Status becomes *confirmed* and is pushed to both users via SignalR. The bubble links to the explorer.
+1. In a 1:1 chat the user taps the payment button and chooses an **asset** — ETH or any supported token (CHAT, tUSD, tBTC; §4.5) — and an amount.
+2. The app signs and sends the transfer **directly to the RPC**: an ERC-20 `transfer`, or a plain ETH transaction.
+3. The app posts a "payment" message into the chat. Its encrypted, signed content names the asset, the amount and the transaction hash; the hash is also given to the server in the clear → status *pending*.
+4. The server reads that transaction from the chain and works out what it really paid the recipient from the sender: `Transfer` events of the supported tokens, or the ETH the transaction itself carried. Events from unknown contracts are ignored.
+5. Status becomes *confirmed* — with the asset and amount **the chain shows** — and is pushed to both users via SignalR. Both apps run the same check themselves against the RPC and do not rely on the server's verdict.
 
-> The server never trusts the client's claim about a payment; it trusts only the on-chain receipt.
+> The server never trusts the client's claim about a payment; it trusts only the on-chain transaction. A message that claims "500 tBTC" for a transaction that sent 1 tUSD is shown as 1 tUSD with a warning, and a transaction that pays someone else is shown as a failed payment.
 
 ### 6.5 Group Chat
 **Creating and joining.** A user creates a group with a name; the API assigns a random 32-byte conversation id and a random invite code (22 base62 characters, about 131 bits). The creator shares the invite link `chainchat://join/<code>`. Opening the link shows a preview (name, member count, creator) and a Join button; joining adds the wallet to the member list (maximum 20 members). Anyone holding the link can join, so the link is the access secret. Members can leave, and rejoin with the link.

@@ -35,7 +35,7 @@ export function ConversationRow({ conversation }: { conversation: ConversationSu
     text = isGroup ? decryptGroupMessage(last.ciphertext, me, key.encryptionKey, secret) : decrypt(last.ciphertext, key.encryptionKey, secret);
   }
   const payment = parsePaymentPayload(text);
-  const body = payment ? `💸 ${Number(formatUnits(BigInt(payment.amount), 18)).toLocaleString()} CHAT` : text;
+  const body = payment ? `💸 ${Number(formatUnits(BigInt(payment.amount), 18)).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${payment.token}` : text;
   const mine = last?.sender.toLowerCase() === me?.toLowerCase();
   const author = mine ? 'You: ' : isGroup && key ? `${key.username}: ` : '';
   const beforeJoining = isGroup && !!last && !!me && body === null && !isGroupMessageFor(last.ciphertext, me);

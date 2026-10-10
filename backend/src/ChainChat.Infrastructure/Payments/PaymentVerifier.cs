@@ -59,13 +59,13 @@ public sealed class NullPaymentNotifier : IPaymentNotifier
 
 /// <summary>
 /// Confirms or rejects payment claims from their on-chain receipts (SDD §6.4). It checks exactly the transaction
-/// the message claims: mined, successful, confirmed, and containing a ChatToken transfer from the sender to the
-/// recipient — so the amount shown in the chat is the on-chain amount, never the claimed one.
+/// the message claims: mined, successful, confirmed, and paying the recipient from the sender — in ETH or in one
+/// of the supported tokens — so the asset and amount shown in the chat are the on-chain ones, never the claimed ones.
 /// </summary>
 public sealed class PaymentVerifier(
     IServiceScopeFactory scopes,
     ChainClient chain,
-    ContractDeployments deployments,
+    AssetCatalog catalog,
     IPaymentNotifier notifier,
     IOptions<PaymentOptions> options,
     TimeProvider time,
@@ -73,17 +73,11 @@ public sealed class PaymentVerifier(
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        if (!deployments.TryGet(ContractDeployments.ChatToken, out var token))
-        {
-            logger.LogWarning("ChatToken is not deployed; payment verification is idle");
-            return;
-        }
-
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                await VerifyPendingAsync(token.Address, options.Value, ct);
+                await VerifyPendingAsync(options.Value, ct);
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
@@ -94,7 +88,7 @@ public sealed class PaymentVerifier(
         }
     }
 
-    private async Task VerifyPendingAsync(string chatToken, PaymentOptions settings, CancellationToken ct)
+    private async Task VerifyPendingAsync(PaymentOptions settings, CancellationToken ct)
     {
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ChainChatDbContext>();
@@ -109,21 +103,29 @@ public sealed class PaymentVerifier(
         foreach (var payment in pending)
         {
             var receipt = await chain.ExecuteAsync(web3 => web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(payment.TxHash), ct);
-            var onChain = receipt is null
-                ? null
-                : new PaymentReceipt(
-                    receipt.Status?.Value == 1,
-                    (long)receipt.BlockNumber.Value,
-                    receipt.DecodeAllEvents<TransferEvent>()
-                        .Where(e => EthAddress.AreEqual(e.Log.Address, chatToken)) // ChatToken only, not any ERC-20
-                        .Select(e => new TokenTransfer(e.Event.From, e.Event.To, e.Event.Value))
-                        .ToList());
+            PaymentReceipt? onChain = null;
+            if (receipt is not null)
+            {
+                // Token transfers of supported assets only — an event from an unknown contract proves nothing.
+                var transfers = receipt.DecodeAllEvents<TransferEvent>()
+                    .Select(e => (Transfer: e.Event, Asset: catalog.FindByAddress(e.Log.Address)))
+                    .Where(t => t.Asset is not null)
+                    .Select(t => new TokenTransfer(t.Transfer.From, t.Transfer.To, t.Transfer.Value, t.Asset!.Symbol))
+                    .ToList();
+
+                // ETH has no event: it is the value the transaction itself carried.
+                var tx = await chain.ExecuteAsync(web3 => web3.Eth.Transactions.GetTransactionByHash.SendRequestAsync(payment.TxHash), ct);
+                if (tx is { To: not null } && tx.Value.Value > 0) transfers.Add(new TokenTransfer(tx.From, tx.To, tx.Value.Value, "ETH"));
+
+                onChain = new PaymentReceipt(receipt.Status?.Value == 1, (long)receipt.BlockNumber.Value, transfers);
+            }
 
             var result = PaymentReceiptCheck.Evaluate(payment.From, payment.To, onChain, head, settings.Confirmations, payment.CreatedAt < giveUpBefore);
             if (result.Verdict == PaymentVerdict.Pending) continue;
 
             payment.Status = result.Verdict == PaymentVerdict.Confirmed ? PaymentStatus.Confirmed : PaymentStatus.Failed;
             payment.Amount = result.Amount;
+            payment.Asset = result.Asset;
             payment.FailureReason = result.FailureReason;
             payment.BlockNumber = onChain?.BlockNumber;
             payment.ConfirmedAt = result.Verdict == PaymentVerdict.Confirmed ? time.GetUtcNow() : null;

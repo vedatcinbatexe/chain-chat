@@ -148,7 +148,9 @@ public static class AdminEndpoints
             .Select(day => new { date = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), count = recent.Count(t => t.UtcDateTime.Date == day) })
             .ToList();
 
-        var confirmed = await db.Payments.AsNoTracking().Where(p => p.Status == PaymentStatus.Confirmed).Select(p => p.Amount).ToListAsync(ct);
+        var paymentCount = await db.Payments.CountAsync(p => p.Status == PaymentStatus.Confirmed, ct);
+        // Amounts of different assets cannot be added up: the volume is CHAT only (payments from before other assets existed have no asset).
+        var confirmed = await db.Payments.AsNoTracking().Where(p => p.Status == PaymentStatus.Confirmed && (p.Asset == null || p.Asset == "CHAT")).Select(p => p.Amount).ToListAsync(ct);
         long? block = null;
         try
         {
@@ -170,7 +172,7 @@ public static class AdminEndpoints
             messagesLast24h = recent.Count(t => t >= now.AddHours(-24)),
             unanchoredMessages = await db.Messages.CountAsync(m => m.AnchorBatchId == null, ct),
             anchorBatches = await db.AnchorBatches.CountAsync(b => b.Status == AnchorBatchStatus.Confirmed, ct),
-            payments = confirmed.Count,
+            payments = paymentCount,
             paymentVolume = confirmed.Aggregate(System.Numerics.BigInteger.Zero, (sum, amount) => sum + amount).ToString(CultureInfo.InvariantCulture),
             blockNumber = block,
             messagesPerDay = perDay,
@@ -522,6 +524,7 @@ public static class AdminEndpoints
             to = EthAddress.ToChecksum(r.Payment.To),
             toUsername = r.ToUsername,
             amount = r.Payment.Status == PaymentStatus.Confirmed ? r.Payment.Amount.ToString(CultureInfo.InvariantCulture) : null,
+            asset = r.Payment.Status == PaymentStatus.Confirmed ? r.Payment.Asset ?? "CHAT" : null,
             status = r.Payment.Status.ToString(),
             failureReason = r.Payment.FailureReason,
             blockNumber = r.Payment.BlockNumber,

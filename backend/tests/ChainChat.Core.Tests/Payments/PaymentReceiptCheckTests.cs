@@ -17,7 +17,25 @@ public class PaymentReceiptCheckTests
 
     [Fact]
     public void Transfer_from_sender_to_recipient_confirms_with_the_on_chain_amount() =>
-        Assert.Equal(new PaymentCheckResult(PaymentVerdict.Confirmed, TenChat), Check(Mined(new TokenTransfer(Alice, Bob, TenChat))));
+        Assert.Equal(new PaymentCheckResult(PaymentVerdict.Confirmed, TenChat, Asset: "CHAT"), Check(Mined(new TokenTransfer(Alice, Bob, TenChat))));
+
+    [Theory]
+    [InlineData("tUSD")]
+    [InlineData("tBTC")]
+    [InlineData("ETH")]
+    public void The_asset_comes_from_the_chain(string asset) =>
+        Assert.Equal(new PaymentCheckResult(PaymentVerdict.Confirmed, TenChat, Asset: asset), Check(Mined(new TokenTransfer(Alice, Bob, TenChat, asset))));
+
+    [Fact]
+    public void A_payment_is_in_one_asset_and_other_assets_are_not_added_to_it()
+    {
+        var result = Check(Mined(new TokenTransfer(Alice, Bob, TenChat, "tUSD"), new TokenTransfer(Alice, Bob, TenChat * 5, "CHAT"), new TokenTransfer(Alice, Bob, TenChat, "tUSD")));
+        Assert.Equal(new PaymentCheckResult(PaymentVerdict.Confirmed, TenChat * 2, Asset: "tUSD"), result);
+    }
+
+    [Fact]
+    public void A_transfer_of_zero_is_not_a_payment() =>
+        Assert.Equal("NoMatchingTransfer", Check(Mined(new TokenTransfer(Alice, Bob, BigInteger.Zero, "ETH"))).FailureReason);
 
     [Fact]
     public void Addresses_are_compared_case_insensitively() =>

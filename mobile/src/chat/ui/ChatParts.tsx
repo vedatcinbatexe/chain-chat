@@ -225,7 +225,7 @@ export function PendingBubble({ pending, onRetry }: { pending: PendingMessage; o
 
 function describePending(pending: PendingMessage): string {
   const payment = parsePaymentPayload(pending.text);
-  return payment ? `💸 Sending ${formatUnits(BigInt(payment.amount), 18)} CHAT…` : pending.text;
+  return payment ? `💸 Sending ${formatUnits(BigInt(payment.amount), 18)} ${payment.token}…` : pending.text;
 }
 
 /** Slim bar shown while the real-time connection is not up. */

@@ -107,13 +107,15 @@ public enum PaymentStatus
     Failed,
 }
 
-/// <summary>An in-chat ERC-20 payment. Status comes only from the on-chain receipt (SDD §6.4).</summary>
+/// <summary>An in-chat payment in ETH or an ERC-20 token. Status comes only from the on-chain receipt (SDD §6.4).</summary>
 public class Payment
 {
     public required string TxHash { get; set; }
     public required string From { get; set; }
     public required string To { get; set; }
-    /// <summary>Token amount in the smallest unit (uint256).</summary>
+    /// <summary>The asset that was paid (ETH, CHAT, tUSD, …), as the chain shows it; set once confirmed.</summary>
+    public string? Asset { get; set; }
+    /// <summary>Amount in the smallest unit (uint256).</summary>
     public BigInteger Amount { get; set; }
     public PaymentStatus Status { get; set; }
     /// <summary>Why a payment failed: TransactionNotFound, TransactionReverted or NoMatchingTransfer.</summary>

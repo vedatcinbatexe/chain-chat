@@ -95,6 +95,7 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         b.Property(p => p.To).HasMaxLength(Len.Address);
         b.Property(p => p.Amount).HasColumnType("numeric(78,0)"); // uint256
         b.Property(p => p.FailureReason).HasMaxLength(64);
+        b.Property(p => p.Asset).HasMaxLength(16);
         b.HasIndex(p => p.From);
         b.HasIndex(p => p.To);
         b.HasIndex(p => p.MessageId).IsUnique();
