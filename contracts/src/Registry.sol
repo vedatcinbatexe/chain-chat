@@ -41,7 +41,8 @@ contract Registry {
         _ownerOfUsername[usernameHash] = msg.sender;
         // casting to 'uint64' is safe because a uint64 of seconds lasts ~584 billion years
         // forge-lint: disable-next-line(unsafe-typecast)
-        _users[msg.sender] = User({username: username, encryptionKey: encryptionKey, registeredAt: uint64(block.timestamp)});
+        _users[msg.sender] =
+            User({username: username, encryptionKey: encryptionKey, registeredAt: uint64(block.timestamp)});
 
         emit UserRegistered(msg.sender, username, encryptionKey);
     }

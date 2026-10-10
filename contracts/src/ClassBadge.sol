@@ -25,7 +25,10 @@ contract ClassBadge is ERC721, Ownable {
     error InvalidBadgeName();
     error UnknownBadgeType(uint256 typeId);
 
-    constructor(address initialOwner, string memory badgeURI) ERC721("ChainChat Class Badge", "CCB") Ownable(initialOwner) {
+    constructor(address initialOwner, string memory badgeURI)
+        ERC721("ChainChat Class Badge", "CCB")
+        Ownable(initialOwner)
+    {
         _badgeURI = badgeURI;
     }
 

@@ -33,7 +33,8 @@ contract MerkleVectorsTest is Test {
             nextMessageId = lastMessageId + 1;
 
             for (uint256 j = 0; j < leaves.length; j++) {
-                string memory proofPath = string.concat(_path(".cases", i, ".expected.proofs"), "[", vm.toString(j), "]");
+                string memory proofPath =
+                    string.concat(_path(".cases", i, ".expected.proofs"), "[", vm.toString(j), "]");
                 bytes32[] memory proof = vm.parseJsonBytes32Array(json, proofPath);
 
                 assertEq(anchor.leafHash(messageHashes[j]), leaves[j], "leaf hash differs from vector");

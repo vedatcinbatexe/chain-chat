@@ -25,7 +25,10 @@ contract Deploy is Script {
 
         if (!vm.envOr("FORCE_DEPLOY", false) && _isLive(path)) {
             if (_badgeHasTypes(path)) {
-                console.log("Contracts in %s are already deployed on this chain - skipping (set FORCE_DEPLOY=true to redeploy)", path);
+                console.log(
+                    "Contracts in %s are already deployed on this chain - skipping (set FORCE_DEPLOY=true to redeploy)",
+                    path
+                );
             } else {
                 // An older ClassBadge without badge types: replace only that contract, so users and messages stay.
                 _redeployBadge(deployerKey, path);
@@ -47,7 +50,8 @@ contract Deploy is Script {
         vm.serializeString(contracts, "Registry", _entry("Registry", address(registry), deployBlock));
         vm.serializeString(contracts, "ChatToken", _entry("ChatToken", address(token), deployBlock));
         vm.serializeString(contracts, "ClassBadge", _entry("ClassBadge", address(badge), deployBlock));
-        string memory contractsJson = vm.serializeString(contracts, "Anchor", _entry("Anchor", address(anchor), deployBlock));
+        string memory contractsJson =
+            vm.serializeString(contracts, "Anchor", _entry("Anchor", address(anchor), deployBlock));
 
         string memory root = "deployment";
         vm.serializeString(root, "network", network);
