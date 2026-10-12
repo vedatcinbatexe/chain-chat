@@ -73,3 +73,17 @@ function validateHeader(header: MessageHeader): void {
     throw new Error("Only the first message (seq 1) may have prevHash = ZERO_HASH");
   }
 }
+
+/**
+ * The same hash, computed from the ciphertext's fingerprint instead of the ciphertext. A deleted message has no
+ * ciphertext any more, only keccak256(ciphertext) — which is all the hash ever covered, so its signature, its
+ * place in the sender's chain and its anchoring proof can still be checked (SDD §6.10).
+ */
+export function messageHashFromCiphertextHash(header: Omit<MessageHeader, "ciphertext"> & { ciphertextHash: Hex }): Hex {
+  if (size(header.conversationId) !== 32 || size(header.prevHash) !== 32 || size(header.ciphertextHash) !== 32) {
+    throw new Error("conversationId, prevHash and ciphertextHash must be 32 bytes");
+  }
+  return keccak256(
+    encodeAbiParameters(MESSAGE_ABI, [header.conversationId, getAddress(header.sender), header.seq, header.prevHash, header.ciphertextHash, header.clientTimestamp]),
+  );
+}

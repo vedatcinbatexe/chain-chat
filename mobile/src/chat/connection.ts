@@ -22,6 +22,12 @@ export function addMessageToCache(queryClient: QueryClient, message: MessageDto)
   queryClient.invalidateQueries({ queryKey: conversationsQueryKey });
 }
 
+/** Swaps in the server's new version of a message — used when it was deleted and only its signed header is left. */
+export function replaceMessageInCache(queryClient: QueryClient, message: MessageDto) {
+  queryClient.setQueryData<MessageDto[]>(messagesQueryKey(message.conversationId), (previous) => previous?.map((m) => (m.id === message.id ? message : m)));
+  queryClient.invalidateQueries({ queryKey: conversationsQueryKey });
+}
+
 /** Opens the app's single real-time connection to /hubs/chat (SDD §9). Safe to call more than once. */
 export async function startChatConnection(queryClient: QueryClient): Promise<void> {
   if (!connection) {
@@ -30,6 +36,7 @@ export async function startChatConnection(queryClient: QueryClient): Promise<voi
       addMessageToCache(queryClient, message);
       void notifyIncomingMessage(queryClient, message);
     });
+    connection.on('MessageDeleted', (message: MessageDto) => replaceMessageInCache(queryClient, message));
     connection.on('Notification', (notification: ServerNotification) => handleServerNotification(queryClient, notification));
     connection.on('PaymentUpdated', (update: { messageId: number; conversationId: string; payment: PaymentDto }) => {
       queryClient.setQueryData<MessageDto[]>(messagesQueryKey(update.conversationId), (previous) =>
@@ -128,6 +135,9 @@ export function notifyTyping(conversationId: string, isTyping: boolean) {
 
 /** Adds the emoji reaction, or removes it if this user already reacted with it. */
 export const toggleReaction = (messageId: number, emoji: string) => invokeChat<void>('React', messageId, emoji);
+
+/** Deletes one of this user's own messages for everyone; resolves with what is left of it (the signed header). */
+export const deleteMessage = (messageId: number) => invokeChat<MessageDto>('DeleteMessage', messageId);
 
 /** Loads who of `addresses` is online now; later changes arrive as PresenceChanged events. */
 export async function loadPresence(addresses: string[]) {

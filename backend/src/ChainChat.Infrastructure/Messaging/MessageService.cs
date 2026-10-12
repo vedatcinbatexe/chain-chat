@@ -165,6 +165,40 @@ public sealed class MessageService(ChainChatDbContext db, TimeProvider time, Cha
         return new AcceptedMessage(message, payment, true, audience);
     }
 
+    /// <summary>
+    /// Deletes a message for everyone, on its sender's request: the encrypted content is erased and cannot be
+    /// brought back, and the reactions go with it. What stays is the signed header with the content's fingerprint,
+    /// so the sender's hash chain has no gap and the anchored Merkle proof still verifies — everyone can see that
+    /// a message was there and that it was removed, but not what it said.
+    /// Payment messages stay: they are the record of an on-chain transfer.
+    /// </summary>
+    public async Task<(Message Message, IReadOnlyList<string> Audience)> DeleteAsync(string requester, long messageId, CancellationToken ct)
+    {
+        var me = EthAddress.Normalize(requester);
+        var message = await db.Messages.FirstOrDefaultAsync(m => m.Id == messageId, ct) ?? throw new MessageRejectedException("MessageNotFound");
+        // Someone else's message is reported like a missing one, so ids cannot be probed.
+        if (message.Sender != me) throw new MessageRejectedException("MessageNotFound");
+        if (message.Type == MessageType.Payment) throw new MessageRejectedException("PaymentsCannotBeDeleted");
+
+        var audience = await db.Participants
+            .Where(p => p.ConversationId == message.ConversationId && p.RemovedAt == null)
+            .Select(p => p.Address)
+            .ToListAsync(ct);
+        if (!audience.Contains(me)) audience.Add(me);
+
+        if (message.DeletedAt is null)
+        {
+            message.CiphertextHash = Hex.FromBytes(MessageHasher.CiphertextHash(message.Ciphertext));
+            message.Ciphertext = [];
+            message.DeletedAt = time.GetUtcNow();
+            db.MessageReactions.RemoveRange(db.MessageReactions.Where(r => r.MessageId == messageId));
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Message {Id} in {Conversation} was deleted by its sender", message.Id, message.ConversationId);
+        }
+
+        return (message, audience);
+    }
+
     private static string? ParsePaymentTxHash(string? txHash)
     {
         if (txHash is null) return null;

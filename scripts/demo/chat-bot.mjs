@@ -126,6 +126,7 @@ const connection = new signalR.HubConnectionBuilder().withUrl(`${API}/hubs/chat`
 
 // Live events the bot does not act on (registered so SignalR does not warn about them).
 for (const event of ['PaymentUpdated', 'TypingChanged', 'PresenceChanged', 'ReactionChanged', 'ConversationUpdated']) connection.on(event, () => {});
+connection.on('MessageDeleted', (m) => log(`✂ message ${m.id} was deleted by its sender — content erased, signed header kept`));
 
 connection.on('MessageReceived', async (m) => {
   if (m.sender.toLowerCase() === account.address.toLowerCase()) return;
@@ -146,6 +147,13 @@ connection.on('MessageReceived', async (m) => {
   }
   log(`← ${group ? `[${group.name}] ` : ''}@${peer.username} seq ${m.seq} | signature ${signatureOk ? 'VALID' : 'INVALID'} | decrypted: ${JSON.stringify(text)}`);
   if (!signatureOk || text === null) return;
+  // A reply carries its text in a small JSON payload that names the answered message by hash.
+  let replied = null;
+  try { replied = JSON.parse(text); } catch {}
+  if (replied?.$chainchat === 'reply' && typeof replied.text === 'string') {
+    log(`  it is a reply to message ${replied.to?.hash?.slice(0, 12)}…`);
+    text = replied.text;
+  }
   // Never answer another bot, or two bots in one group would talk forever.
   if (group && text.startsWith('🤖')) return;
 

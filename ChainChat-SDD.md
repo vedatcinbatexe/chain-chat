@@ -449,6 +449,14 @@ The indexer mirrors the contract's events for the dashboard and notifies the mak
 
 ---
 
+### 6.10 Replies, Deleting and Searching Messages
+
+**Reply.** A reply is an ordinary encrypted, signed message whose content is a small payload: `{"$chainchat":"reply","v":1,"to":{"hash":"0x…","sender":"0x…"},"text":"…"}`. The answered message is named by its **message hash** — the value its sender signed and that is anchored on-chain — so the reference cannot be pointed at another message afterwards, and the server cannot see which message is answered. The payload carries no copy of the original text: the app finds the original among the loaded messages and draws it as a quote. If the original was deleted, the quote says so.
+
+**Delete for everyone.** Only the sender can delete a message (`ChatHub.DeleteMessage`). The server erases the ciphertext and the reactions, sets `deleted_at`, and keeps the signed header together with `keccak256(ciphertext)`. Because the message hash is `keccak256(abi.encode(…, keccak256(ciphertext), …))` (§6.3), that fingerprint is all the hash ever covered. A deleted message therefore still verifies: apps recompute the hash from the fingerprint, check the signature, the sender's hash chain has no gap, and the Merkle proof against the anchored root still holds. Everyone can see *that* a message existed and was removed — not what it said. This is deliberate: content can be erased, history cannot be silently rewritten. Payment messages cannot be deleted (they are the record of an on-chain transfer), and the app does not offer deletion for swap offers. Encrypted attachment files of a deleted voice or image message are not removed from the server yet; without the key in the erased message they cannot be decrypted.
+
+**Search.** The server stores only ciphertext and cannot search it, so searching happens on the phone over messages it has already decrypted. Inside a chat, a search bar filters the conversation by text and by kind (text, photos, voice, payments, swaps); tapping a result shows it in its place. The Search tab searches across all chats: the app loads the latest 100 messages of every conversation, decrypts them with the senders' keys read from the Registry contract, and filters them the same way. Opening a result jumps to that message in its chat, where it is verified as usual.
+
 ## 7. Data Design
 
 ### 7.1 Storage Responsibilities

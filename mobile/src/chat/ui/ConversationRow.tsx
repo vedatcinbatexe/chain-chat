@@ -1,15 +1,13 @@
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, Text, useTheme } from 'react-native-paper';
-import { formatUnits } from 'viem';
 
 import type { ConversationSummary } from '@/api/conversations';
 import { UserAvatar } from '@/components/UserAvatar';
 import { decrypt, decryptGroupMessage, isGroupMessageFor } from '@/crypto';
 import { getEncryptionKeyPair, useWalletStore } from '@/wallet/walletStore';
 import { useIsOnline } from '../liveStore';
-import { parsePaymentPayload } from '../payment';
-import { describeMedia } from '../image';
+import { messageBody } from '../content';
 import { useMemberKeys } from '../useMemberKeys';
 import { formatMessageTime } from '../usePeer';
 
@@ -31,16 +29,16 @@ export function ConversationRow({ conversation }: { conversation: ConversationSu
   const key = keyOwner ? keys[keyOwner.toLowerCase()] : undefined;
 
   let text: string | null = null;
-  if (last && key && me) {
+  if (last && !last.deletedAt && key && me) {
     const secret = getEncryptionKeyPair().secretKey;
     text = isGroup ? decryptGroupMessage(last.ciphertext, me, key.encryptionKey, secret) : decrypt(last.ciphertext, key.encryptionKey, secret);
   }
-  const payment = parsePaymentPayload(text);
-  const body = payment ? `💸 ${Number(formatUnits(BigInt(payment.amount), 18)).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${payment.token}` : (describeMedia(text) ?? text);
+  const body = messageBody(text);
   const mine = last?.sender.toLowerCase() === me?.toLowerCase();
   const author = mine ? 'You: ' : isGroup && key ? `${key.username}: ` : '';
-  const beforeJoining = isGroup && !!last && !!me && body === null && !isGroupMessageFor(last.ciphertext, me);
-  const preview = !last ? (isGroup ? 'No messages yet — say hello' : 'No messages yet') : beforeJoining ? 'You joined — say hello' : body === null ? '🔒 Encrypted message' : `${author}${body}`;
+  const deleted = !!last?.deletedAt;
+  const beforeJoining = isGroup && !!last && !deleted && !!me && body === null && !isGroupMessageFor(last.ciphertext, me);
+  const preview = !last ? (isGroup ? 'No messages yet — say hello' : 'No messages yet') : deleted ? `${author}🚫 Message deleted` : beforeJoining ? 'You joined — say hello' : body === null ? '🔒 Encrypted message' : `${author}${body}`;
 
   const title = isGroup ? conversation.group!.name : `@${conversation.peer!.username}`;
   const open = () =>

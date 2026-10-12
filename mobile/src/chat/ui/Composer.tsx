@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, IconButton, Menu, TextInput, useTheme } from 'react-native-paper';
+import { ActivityIndicator, IconButton, Menu, Text, TextInput, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { notifyTyping } from '../connection';
@@ -28,13 +28,16 @@ interface Props {
   onSendImage?: () => Promise<void>;
   /** Adds "Swap offer" to the + menu. */
   onSwap?: () => void;
+  /** The message being answered: shown above the input until it is sent or cancelled. */
+  replyingTo?: { name: string; body: string } | null;
+  onCancelReply?: () => void;
 }
 
 /**
  * Message input with a + menu (photo or GIF, payment), an emoji picker, and a send or microphone button; tells the
  * other participants when the user is typing. While a voice message is recorded, the recorder bar takes its place.
  */
-export function Composer({ conversationId, value, onChange, onSend, connected, onPay, payDisabled, onSendVoice, onSendImage, onSwap }: Props) {
+export function Composer({ conversationId, value, onChange, onSend, connected, onPay, payDisabled, onSendVoice, onSendImage, onSwap, replyingTo, onCancelReply }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const lastSent = useRef(0);
@@ -92,7 +95,21 @@ export function Composer({ conversationId, value, onChange, onSend, connected, o
   if (recording && onSendVoice) return <VoiceRecorder onSend={onSendVoice} onClose={() => setRecording(false)} />;
 
   return (
-    <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: theme.colors.background, borderTopColor: theme.colors.outlineVariant }]}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: theme.colors.background, borderTopColor: theme.colors.outlineVariant }]}>
+      {replyingTo && (
+        <View style={[styles.reply, { backgroundColor: theme.colors.surfaceVariant, borderLeftColor: theme.colors.primary }]}>
+          <View style={styles.replyText}>
+            <Text variant="labelMedium" style={{ color: theme.colors.primary }} numberOfLines={1}>
+              Replying to {replyingTo.name}
+            </Text>
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={1}>
+              {replyingTo.body}
+            </Text>
+          </View>
+          <IconButton icon="close" size={18} style={styles.replyClose} onPress={onCancelReply} accessibilityLabel="Cancel reply" />
+        </View>
+      )}
+      <View style={styles.composer}>
       {(onPay || onSendImage || onSwap) &&
         (attaching ? (
           <ActivityIndicator style={styles.spinner} />
@@ -144,12 +161,17 @@ export function Composer({ conversationId, value, onChange, onSend, connected, o
       ) : (
         <IconButton icon="send" mode="contained" size={22} style={styles.button} onPress={send} disabled={!value.trim() || !connected} accessibilityLabel="Send" />
       )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 8, paddingTop: 8, gap: 2, borderTopWidth: StyleSheet.hairlineWidth },
+  container: { paddingHorizontal: 8, paddingTop: 8, gap: 6, borderTopWidth: StyleSheet.hairlineWidth },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
+  reply: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderLeftWidth: 3, paddingLeft: 10, paddingVertical: 6 },
+  replyText: { flex: 1, minWidth: 0 },
+  replyClose: { margin: 0 },
   button: { marginBottom: 4, marginHorizontal: 0 },
   spinner: { width: 40, marginBottom: 14 },
   input: { flex: 1, maxHeight: 120, fontSize: 16 },

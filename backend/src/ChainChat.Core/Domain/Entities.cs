@@ -94,6 +94,14 @@ public class Message
     public MessageType Type { get; set; }
     public string? PaymentTxHash { get; set; }
 
+    /// <summary>
+    /// Set when the sender deleted the message: <see cref="Ciphertext"/> is erased and only its keccak256 is kept in
+    /// <see cref="CiphertextHash"/>. The message hash covers that fingerprint, not the content itself, so the
+    /// signature, the hash chain and the anchoring proof of a deleted message can still be verified (SDD §6.10).
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+    public string? CiphertextHash { get; set; }
+
     // Anchoring (SDD §6.6) — set once the message is included in a confirmed batch.
     public long? AnchorBatchId { get; set; }
     public int? LeafIndex { get; set; }

@@ -23,7 +23,8 @@ public sealed class ReactionService(ChainChatDbContext db, TimeProvider time)
         if (!ChainChat.Core.Messaging.EmojiValidator.IsSingleEmoji(emoji)) throw new MessageRejectedException("ReactionNotAllowed");
         var me = EthAddress.Normalize(requester);
 
-        var conversationId = await db.Messages.Where(m => m.Id == messageId).Select(m => m.ConversationId).FirstOrDefaultAsync(ct)
+        // A deleted message takes no more reactions.
+        var conversationId = await db.Messages.Where(m => m.Id == messageId && m.DeletedAt == null).Select(m => m.ConversationId).FirstOrDefaultAsync(ct)
             ?? throw new MessageRejectedException("MessageNotFound");
         var audience = await db.Participants
             .Where(p => p.ConversationId == conversationId && p.RemovedAt == null)

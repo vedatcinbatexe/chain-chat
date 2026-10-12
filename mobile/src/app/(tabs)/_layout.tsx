@@ -4,7 +4,6 @@ import type { ComponentProps } from 'react';
 import type { ColorValue } from 'react-native';
 
 import { useSessionStore } from '@/auth/sessionStore';
-import { ChatConnection } from '@/chat/ChatConnection';
 import { BlockedScreen } from '@/components/BlockedScreen';
 import { NotificationBell } from '@/notifications/NotificationBell';
 import { ErrorScreen, LoadingScreen } from '@/components/StatusScreens';
@@ -40,8 +39,6 @@ export default function TabsLayout() {
 
   return (
     <>
-      {/* One real-time connection for the whole signed-in app. */}
-      <ChatConnection />
       <Tabs screenOptions={{ headerRight: () => <NotificationBell /> }}>
         <Tabs.Screen name="index" options={{ title: 'Chats', tabBarIcon: tabIcon('message-text-outline') }} />
         <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: tabIcon('account-search-outline') }} />

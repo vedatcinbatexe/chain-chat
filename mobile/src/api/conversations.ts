@@ -20,6 +20,10 @@ export interface MessageDto {
   payment?: PaymentDto | null;
   /** Emoji reactions (metadata visible to the server), grouped by emoji. */
   reactions?: ReactionSummary[];
+  /** Set when the sender deleted the message; `ciphertext` is then empty ("0x"). */
+  deletedAt?: string | null;
+  /** keccak256 of the erased ciphertext of a deleted message — enough to recompute its hash and check its signature. */
+  ciphertextHash?: Hex | null;
 }
 
 export interface ReactionSummary {
