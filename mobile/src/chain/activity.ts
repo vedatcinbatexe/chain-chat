@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { parseAbi, zeroAddress, type Address, type Hex } from 'viem';
+import { formatUnits, parseAbi, zeroAddress, type Address, type Hex } from 'viem';
 
 import { authedRequest } from '@/api/authed';
 import { useSystemInfo, type SystemInfo } from '@/api/system';
 import { anchorAbi } from './anchor';
 import { classBadgeAbi, readBadgeTypes } from './classBadge';
 import { getPublicClient } from './publicClient';
+import { readSwapOrder, swapDeskAbi } from './swapDesk';
 import { readRegistration } from './registry';
 
 /**
@@ -21,6 +22,11 @@ const events = parseAbi([
 ]);
 const [userRegistered, keyUpdated, tokenTransfer, faucetClaimed] = events;
 const badgeTransfer = classBadgeAbi.find((item) => item.type === 'event' && item.name === 'Transfer')!;
+const swapEvents = {
+  created: swapDeskAbi.find((item) => item.type === 'event' && item.name === 'OrderCreated')!,
+  filled: swapDeskAbi.find((item) => item.type === 'event' && item.name === 'OrderFilled')!,
+  cancelled: swapDeskAbi.find((item) => item.type === 'event' && item.name === 'OrderCancelled')!,
+};
 const rootAnchored = anchorAbi.find((item) => item.type === 'event' && item.name === 'RootAnchored')!;
 
 export type ActivityKind =
@@ -34,7 +40,10 @@ export type ActivityKind =
   | 'badge-received'
   | 'badge-sent'
   | 'eth-received'
-  | 'eth-sent';
+  | 'eth-sent'
+  | 'swap-offered'
+  | 'swap-completed'
+  | 'swap-cancelled';
 
 export interface ActivityItem {
   id: string;
@@ -52,6 +61,8 @@ export interface ActivityItem {
   /** The counterparty's username from the Registry contract, if registered. */
   counterpartyName?: string | null;
   badge?: { tokenId: bigint; name: string };
+  /** For swaps: what this wallet gave and got (or would get), in words — e.g. "100 tUSD" and "0.01 tBTC". */
+  swap?: { id: bigint; gave: string; got: string };
   username?: string;
 }
 
@@ -146,6 +157,37 @@ export async function readActivity(system: SystemInfo, me: Address, ethHints: Et
     }
   }
 
+  // Swaps (SDD §6.9): one entry per offer made, completed or cancelled. The token movements they cause are left
+  // out below, so a swap is not listed twice.
+  const desk = system.contracts.SwapDesk;
+  if (desk) {
+    const fromBlock = BigInt(system.deployBlocks?.SwapDesk ?? 0);
+    const [created, asMaker, asTaker, cancelled] = await Promise.all([
+      client.getLogs({ address: desk, event: swapEvents.created, args: { maker: me }, fromBlock }),
+      client.getLogs({ address: desk, event: swapEvents.filled, args: { maker: me }, fromBlock }),
+      client.getLogs({ address: desk, event: swapEvents.filled, args: { taker: me }, fromBlock }),
+      client.getLogs({ address: desk, event: swapEvents.cancelled, args: { maker: me }, fromBlock }),
+    ]);
+    const ids = [...new Set([...created, ...asMaker, ...asTaker, ...cancelled].map((log) => log.args.id!))];
+    const orders = new Map((await Promise.all(ids.map((id) => readSwapOrder(system, id)))).map((order) => [order.id, order]));
+    const words = (side: { asset: { symbol: string } | null; amount: bigint }) =>
+      `${Number(formatUnits(side.amount, 18)).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${side.asset?.symbol ?? 'tokens'}`;
+
+    for (const [kind, logs] of [['swap-offered', created], ['swap-completed', asMaker], ['swap-completed', asTaker], ['swap-cancelled', cancelled]] as const) {
+      for (const log of logs) {
+        const order = orders.get(log.args.id!);
+        if (!order) continue;
+        const iAmMaker = order.maker.toLowerCase() === me.toLowerCase();
+        items.push({
+          ...base(log),
+          kind,
+          counterparty: kind === 'swap-completed' ? (iAmMaker ? (order.taker ?? undefined) : order.maker) : undefined,
+          swap: { id: order.id, gave: words(iAmMaker ? order.sell : order.buy), got: words(iAmMaker ? order.buy : order.sell) },
+        });
+      }
+    }
+  }
+
   // ETH transfers named by the server: shown only if the transaction exists on-chain and really moves ETH to or
   // from this wallet.
   const ethTransfers = await Promise.all(ethHints.map((hint) => client.getTransaction({ hash: hint.txHash }).catch(() => null)));
@@ -166,8 +208,10 @@ export async function readActivity(system: SystemInfo, me: Address, ethHints: Et
     });
   }
 
-  // A transfer to yourself appears in both directions: keep one.
-  const unique = [...new Map(items.map((item) => [item.id, item])).values()]
+  // A transfer to yourself appears in both directions: keep one. Token movements in and out of the swap desk are
+  // part of a swap, which has its own entry.
+  const isSwapLeg = (item: ActivityItem) => !!desk && !item.swap && item.counterparty?.toLowerCase() === desk.toLowerCase();
+  const unique = [...new Map(items.filter((item) => !isSwapLeg(item)).map((item) => [item.id, item])).values()]
     .sort((a, b) => (a.blockNumber === b.blockNumber ? b.logIndex - a.logIndex : a.blockNumber > b.blockNumber ? -1 : 1))
     .slice(0, MAX_ITEMS);
 

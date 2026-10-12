@@ -152,6 +152,25 @@ export interface AnchorRow {
 
 export type Asset = 'ETH' | 'CHAT';
 
+/** A peer-to-peer swap order in the SwapDesk contract, mirrored from its events. */
+export interface SwapRow {
+  id: number;
+  maker: string;
+  makerUsername: string | null;
+  taker: string | null;
+  takerUsername: string | null;
+  sellAsset: string;
+  sellAmount: string;
+  buyAsset: string;
+  buyAmount: string;
+  status: 'Open' | 'Expired' | 'Filled' | 'Cancelled';
+  expiresAt: string;
+  createTxHash: string;
+  closeTxHash: string | null;
+  createdAt: string;
+  closedAt: string | null;
+}
+
 /** A deposit, withdrawal or transfer recorded from the chain (the exchange portal and the app's Send screen). */
 export interface TransferRow {
   txHash: string;

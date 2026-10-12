@@ -13,6 +13,10 @@ import { addMessageToCache, loadPresence, toggleReaction, useChatConnectionStore
 import { GroupInfoSheet } from '@/chat/GroupInfoSheet';
 import { describeTyping, useLiveStore, useTypingAddresses } from '@/chat/liveStore';
 import { sendGroupMessage } from '@/chat/send';
+import { useSystemInfo } from '@/api/system';
+import { createSwapOrder } from '@/chain/swapDesk';
+import { SwapOfferSheet } from '@/chat/SwapOfferSheet';
+import { formatSwapPayload } from '@/chat/swap';
 import { pickImageMessage } from '@/chat/sendImage';
 import { prepareVoiceMessage } from '@/chat/sendVoice';
 import { buildRows, ConnectionBar, DaySeparator, EmptyConversation, LoadingHistory, MessageBubble, PendingBubble, type PendingMessage } from '@/chat/ui/ChatParts';
@@ -65,6 +69,8 @@ export default function GroupChatScreen() {
   const [reactingTo, setReactingTo] = useState<VerifiedMessage | null>(null);
   const [reactionsOf, setReactionsOf] = useState<number | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [swapping, setSwapping] = useState(false);
+  const system = useSystemInfo();
 
   // Keys of the current members (to encrypt to) and of everyone who wrote a message (to decrypt), from the chain.
   const memberAddresses = group.data?.members.map((m) => m.address) ?? [];
@@ -193,6 +199,7 @@ export default function GroupChatScreen() {
                 groupedWithNext={item.groupedWithNext}
                 senderLabel={!item.message.mine && item.firstOfRun ? nameOf(item.message.dto.sender) : null}
                 senderName={nameOf(item.message.dto.sender)}
+                nameOf={(address) => (address.toLowerCase() === me.toLowerCase() ? 'you' : nameOf(address))}
                 me={me}
                 onPress={() => {
                   Keyboard.dismiss();
@@ -248,6 +255,7 @@ export default function GroupChatScreen() {
           send(text);
         }}
         onSendVoice={async (recording) => send(await prepareVoiceMessage(recording))}
+        onSwap={system.data?.contracts.SwapDesk ? () => setSwapping(true) : undefined}
         onSendImage={async () => {
           const picture = await pickImageMessage();
           if (picture) send(picture);
@@ -258,6 +266,16 @@ export default function GroupChatScreen() {
       <VerifySheet message={selected} peerUsername={selected ? nameOf(selected.dto.sender).replace(/^@/, '') : ''} onDismiss={() => setSelected(null)} />
       <ReactionPicker visible={!!reactingTo} onDismiss={() => setReactingTo(null)} onSelect={(emoji) => reactingTo && react(reactingTo, emoji)} />
       <ReactionsSheet reactions={reactionsOf === null ? null : (liveReactions.get(reactionsOf) ?? [])} me={me} nameOf={nameOf} onDismiss={() => setReactionsOf(null)} />
+      <SwapOfferSheet
+        visible={swapping}
+        onDismiss={() => setSwapping(false)}
+        onCreate={async (offer) => {
+          // Lock the offered asset in the swap contract first, then announce the order in the group.
+          const { id } = await createSwapOrder(system.data!, offer.sell, offer.buy, Date.now() + offer.validForMs);
+          send(formatSwapPayload({ orderId: id.toString(), sell: { token: offer.sell.asset.symbol, amount: offer.sell.amount.toString() }, buy: { token: offer.buy.asset.symbol, amount: offer.buy.amount.toString() } }));
+          queryClient.invalidateQueries({ queryKey: ['balances'] });
+        }}
+      />
       <GroupInfoSheet
         group={info}
         me={me}

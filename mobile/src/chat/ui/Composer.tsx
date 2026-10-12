@@ -26,13 +26,15 @@ interface Props {
   onSendVoice?: (recording: Recording) => Promise<void>;
   /** Adds "Photo or GIF" to the + menu: lets the user pick a picture, then encrypts, uploads and sends it. */
   onSendImage?: () => Promise<void>;
+  /** Adds "Swap offer" to the + menu. */
+  onSwap?: () => void;
 }
 
 /**
  * Message input with a + menu (photo or GIF, payment), an emoji picker, and a send or microphone button; tells the
  * other participants when the user is typing. While a voice message is recorded, the recorder bar takes its place.
  */
-export function Composer({ conversationId, value, onChange, onSend, connected, onPay, payDisabled, onSendVoice, onSendImage }: Props) {
+export function Composer({ conversationId, value, onChange, onSend, connected, onPay, payDisabled, onSendVoice, onSendImage, onSwap }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const lastSent = useRef(0);
@@ -91,7 +93,7 @@ export function Composer({ conversationId, value, onChange, onSend, connected, o
 
   return (
     <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 10), backgroundColor: theme.colors.background, borderTopColor: theme.colors.outlineVariant }]}>
-      {(onPay || onSendImage) &&
+      {(onPay || onSendImage || onSwap) &&
         (attaching ? (
           <ActivityIndicator style={styles.spinner} />
         ) : (
@@ -101,6 +103,16 @@ export function Composer({ conversationId, value, onChange, onSend, connected, o
             anchorPosition="top"
             anchor={<IconButton icon="plus" mode="contained-tonal" size={22} style={styles.button} onPress={() => setMenuOpen(true)} disabled={!connected} accessibilityLabel="Attach" />}>
             {onSendImage && <Menu.Item leadingIcon="image-outline" title="Photo or GIF" onPress={attachImage} />}
+            {onSwap && (
+              <Menu.Item
+                leadingIcon="swap-horizontal"
+                title="Swap offer"
+                onPress={() => {
+                  setMenuOpen(false);
+                  onSwap();
+                }}
+              />
+            )}
             {onPay && (
               <Menu.Item
                 leadingIcon="cash-fast"

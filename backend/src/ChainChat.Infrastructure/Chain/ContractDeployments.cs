@@ -29,6 +29,7 @@ public sealed class ContractDeployments
     public const string Anchor = "Anchor";
     public const string TestUSD = "TestUSD";
     public const string TestBTC = "TestBTC";
+    public const string SwapDesk = "SwapDesk";
 
     private readonly IReadOnlyDictionary<string, ContractDeployment> _contracts;
 

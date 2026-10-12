@@ -7,6 +7,7 @@ import {ChatToken} from "../src/ChatToken.sol";
 import {ClassBadge} from "../src/ClassBadge.sol";
 import {Anchor} from "../src/Anchor.sol";
 import {TestToken} from "../src/TestToken.sol";
+import {SwapDesk} from "../src/SwapDesk.sol";
 
 /// @notice Deploys the ChainChat contracts and writes shared/deployments/{NETWORK}.json.
 /// @dev Environment:
@@ -15,7 +16,7 @@ import {TestToken} from "../src/TestToken.sol";
 ///      BADGE_URI             ClassBadge metadata URI
 ///      CHAT_INITIAL_SUPPLY   ChatToken supply minted to the deployer (wei)
 ///      FORCE_DEPLOY          "true" to redeploy even if the existing deployment is live
-///      An existing deployment is kept: only contracts that are missing (the extra test tokens) or outdated
+///      An existing deployment is kept: only contracts that are missing (the test tokens, the swap desk) or outdated
 ///      (a ClassBadge without badge types) are deployed.
 contract Deploy is Script {
     string internal constant DEPLOYMENTS_DIR = "../shared/deployments/";
@@ -27,7 +28,8 @@ contract Deploy is Script {
     uint256 internal constant ANCHOR = 3;
     uint256 internal constant TEST_USD = 4;
     uint256 internal constant TEST_BTC = 5;
-    uint256 internal constant COUNT = 6;
+    uint256 internal constant SWAP_DESK = 6;
+    uint256 internal constant COUNT = 7;
 
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -48,6 +50,7 @@ contract Deploy is Script {
             addrs[ANCHOR] = address(new Anchor(deployer));
             addrs[TEST_USD] = address(new TestToken(deployer, "Test USD", "tUSD"));
             addrs[TEST_BTC] = address(new TestToken(deployer, "Test Bitcoin", "tBTC"));
+            addrs[SWAP_DESK] = address(new SwapDesk());
             vm.stopBroadcast();
             for (uint256 i = 0; i < COUNT; i++) {
                 blocks[i] = block.number;
@@ -88,6 +91,12 @@ contract Deploy is Script {
             changed = true;
             console.log("TestBTC (tBTC) added: %s", addrs[TEST_BTC]);
         }
+        if (addrs[SWAP_DESK].code.length == 0) {
+            addrs[SWAP_DESK] = address(new SwapDesk());
+            blocks[SWAP_DESK] = block.number;
+            changed = true;
+            console.log("SwapDesk added: %s", addrs[SWAP_DESK]);
+        }
         vm.stopBroadcast();
 
         if (changed) {
@@ -107,7 +116,8 @@ contract Deploy is Script {
         if (index == CLASS_BADGE) return "ClassBadge";
         if (index == ANCHOR) return "Anchor";
         if (index == TEST_USD) return "TestUSD";
-        return "TestBTC";
+        if (index == TEST_BTC) return "TestBTC";
+        return "SwapDesk";
     }
 
     /// @dev Writes shared/deployments/{NETWORK}.json with every contract's address and deploy block.

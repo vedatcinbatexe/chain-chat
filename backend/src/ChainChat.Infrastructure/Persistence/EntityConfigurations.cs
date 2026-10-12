@@ -267,3 +267,22 @@ internal sealed class AttachmentConfiguration : IEntityTypeConfiguration<Attachm
         b.HasIndex(a => a.Uploader);
     }
 }
+
+internal sealed class SwapOrderConfiguration : IEntityTypeConfiguration<SwapOrder>
+{
+    public void Configure(EntityTypeBuilder<SwapOrder> b)
+    {
+        b.HasKey(o => o.Id);
+        b.Property(o => o.Id).ValueGeneratedNever(); // the id comes from the contract
+        b.Property(o => o.Maker).HasMaxLength(Len.Address);
+        b.Property(o => o.Taker).HasMaxLength(Len.Address);
+        b.Property(o => o.SellAsset).HasMaxLength(Len.Address);
+        b.Property(o => o.BuyAsset).HasMaxLength(Len.Address);
+        b.Property(o => o.SellAmount).HasColumnType("numeric(78,0)");
+        b.Property(o => o.BuyAmount).HasColumnType("numeric(78,0)");
+        b.Property(o => o.CreateTxHash).HasMaxLength(Len.Hash);
+        b.Property(o => o.CloseTxHash).HasMaxLength(Len.Hash);
+        b.HasIndex(o => o.Maker);
+        b.HasIndex(o => o.Status);
+    }
+}

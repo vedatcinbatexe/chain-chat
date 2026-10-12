@@ -1,5 +1,6 @@
 import type { Hex } from 'viem';
 
+import { describeSwap } from './swap';
 import { describeVoice } from './voice';
 
 /**
@@ -58,5 +59,5 @@ export function describeImage(text: string | null): string | null {
   return image ? (image.mime === 'image/gif' ? '🎞 GIF' : '📷 Photo') : null;
 }
 
-/** One line for chat lists and notifications when the message is a voice message or an image; otherwise null. */
-export const describeMedia = (text: string | null) => describeVoice(text) ?? describeImage(text);
+/** One line for chat lists and notifications when the message is a voice message, an image or a swap offer; otherwise null. */
+export const describeMedia = (text: string | null) => describeVoice(text) ?? describeImage(text) ?? describeSwap(text);

@@ -25,6 +25,9 @@ const ICONS: Record<ActivityKind, string> = {
   'badge-sent': 'certificate-outline',
   'eth-received': 'ethereum',
   'eth-sent': 'arrow-top-right',
+  'swap-offered': 'swap-horizontal',
+  'swap-completed': 'swap-horizontal-bold',
+  'swap-cancelled': 'swap-horizontal',
 };
 
 const amountOf = (wei: bigint | undefined) => (wei === undefined ? '' : Number(formatUnits(wei, 18)).toLocaleString(undefined, { maximumFractionDigits: 4 }));
@@ -55,6 +58,12 @@ function describe(item: ActivityItem): string {
       return `Received ${amountOf(item.amount)} ETH`;
     case 'eth-sent':
       return `Sent ${amountOf(item.amount)} ETH to ${who(item)}`;
+    case 'swap-offered':
+      return `Offered ${item.swap?.gave} for ${item.swap?.got} (swap #${item.swap?.id})`;
+    case 'swap-completed':
+      return `Swapped ${item.swap?.gave} for ${item.swap?.got} with ${who(item)}`;
+    case 'swap-cancelled':
+      return `Cancelled swap #${item.swap?.id} and got ${item.swap?.gave} back`;
   }
 }
 

@@ -787,6 +787,84 @@ namespace ChainChat.Infrastructure.Persistence.Migrations
                     b.ToTable("processed_chain_events", (string)null);
                 });
 
+            modelBuilder.Entity("ChainChat.Core.Domain.SwapOrder", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    b.Property<BigInteger>("BuyAmount")
+                        .HasColumnType("numeric(78,0)")
+                        .HasColumnName("buy_amount");
+
+                    b.Property<string>("BuyAsset")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("buy_asset");
+
+                    b.Property<string>("CloseTxHash")
+                        .HasMaxLength(66)
+                        .HasColumnType("character varying(66)")
+                        .HasColumnName("close_tx_hash");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<string>("CreateTxHash")
+                        .IsRequired()
+                        .HasMaxLength(66)
+                        .HasColumnType("character varying(66)")
+                        .HasColumnName("create_tx_hash");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Maker")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("maker");
+
+                    b.Property<BigInteger>("SellAmount")
+                        .HasColumnType("numeric(78,0)")
+                        .HasColumnName("sell_amount");
+
+                    b.Property<string>("SellAsset")
+                        .IsRequired()
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("sell_asset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Taker")
+                        .HasMaxLength(42)
+                        .HasColumnType("character varying(42)")
+                        .HasColumnName("taker");
+
+                    b.HasKey("Id")
+                        .HasName("pk_swap_orders");
+
+                    b.HasIndex("Maker")
+                        .HasDatabaseName("ix_swap_orders_maker");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_swap_orders_status");
+
+                    b.ToTable("swap_orders", (string)null);
+                });
+
             modelBuilder.Entity("ChainChat.Core.Domain.SystemSetting", b =>
                 {
                     b.Property<string>("Key")

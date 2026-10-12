@@ -5,8 +5,10 @@ import { formatUnits, type Address, type Hex } from 'viem';
 import type { ReactionSummary } from '@/api/conversations';
 import { parsePaymentPayload } from '../payment';
 import { describeMedia, parseImagePayload } from '../image';
+import { parseSwapPayload } from '../swap';
 import { parseVoicePayload } from '../voice';
 import { ImageContent } from './ImageContent';
+import { SwapContent } from './SwapContent';
 import { VoiceContent } from './VoiceContent';
 import { PaymentContent } from '../PaymentContent';
 import { formatMessageTime } from '../usePeer';
@@ -97,9 +99,11 @@ interface BubbleProps {
   onShowReactions: () => void;
   /** The live reaction list; reactions change without the message being verified again. */
   reactions?: ReactionSummary[];
+  /** Display name for an address (swap offers name the maker and whoever accepted). */
+  nameOf?: (address: string) => string;
 }
 
-export function MessageBubble({ message, groupedWithNext, senderLabel, senderName, recipient, me, onPress, onLongPress, onToggleReaction, onShowReactions, reactions: liveReactions }: BubbleProps) {
+export function MessageBubble({ message, groupedWithNext, senderLabel, senderName, recipient, me, onPress, onLongPress, onToggleReaction, onShowReactions, reactions: liveReactions, nameOf }: BubbleProps) {
   const theme = useTheme();
   const { mine, text, signatureValid, chainIntact, dto } = message;
   // A payment only counts if the signed, encrypted payload names the same transaction the server recorded.
@@ -107,10 +111,11 @@ export function MessageBubble({ message, groupedWithNext, senderLabel, senderNam
   const payment = parsed && recipient && (!dto.payment || dto.payment.txHash.toLowerCase() === parsed.txHash.toLowerCase()) ? parsed : null;
   const voice = parseVoicePayload(text);
   const image = parseImagePayload(text);
+  const swap = parseSwapPayload(text);
 
   const background = !signatureValid
     ? theme.colors.errorContainer
-    : payment
+    : payment || swap
       ? mine
         ? theme.colors.primaryContainer
         : theme.colors.secondaryContainer
@@ -119,7 +124,7 @@ export function MessageBubble({ message, groupedWithNext, senderLabel, senderNam
         : theme.colors.surfaceVariant;
   const foreground = !signatureValid
     ? theme.colors.onErrorContainer
-    : payment
+    : payment || swap
       ? mine
         ? theme.colors.onPrimaryContainer
         : theme.colors.onSecondaryContainer
@@ -155,6 +160,8 @@ export function MessageBubble({ message, groupedWithNext, senderLabel, senderNam
           <VoiceContent voice={voice} color={foreground} />
         ) : image ? (
           <ImageContent image={image} color={foreground} onLongPress={onLongPress} />
+        ) : swap ? (
+          <SwapContent swap={swap} sender={dto.sender} me={me} color={foreground} nameOf={nameOf ?? ((address) => `${address.slice(0, 6)}…${address.slice(-4)}`)} />
         ) : (
           <Text variant="bodyLarge" style={{ color: foreground, fontStyle: text === null ? 'italic' : 'normal' }}>
             {text ?? 'Could not decrypt this message'}

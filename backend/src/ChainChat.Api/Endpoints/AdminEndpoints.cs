@@ -74,6 +74,7 @@ public static class AdminEndpoints
         admin.MapGet("/transactions/anchors", ListAnchors);
         admin.MapGet("/transactions/fundings", ListFundings);
         admin.MapGet("/transactions/transfers", ListTransfers);
+        admin.MapGet("/transactions/swaps", ListSwaps);
         admin.MapPost("/funding", Fund);
 
         admin.MapGet("/admins", ListAdmins);
@@ -581,6 +582,41 @@ public static class AdminEndpoints
             .ToListAsync(ct);
 
         return Results.Ok(new Paged<object>(rows.Select(r => PresentFunding(r.Funding, r.Username)).ToList(), total, p, size));
+    }
+
+    private static async Task<IResult> ListSwaps(int? page, int? pageSize, ChainChatDbContext db, TimeProvider time, CancellationToken ct)
+    {
+        var (p, size) = Paging(page, pageSize);
+        var total = await db.SwapOrders.CountAsync(ct);
+        var rows = await db.SwapOrders.AsNoTracking().OrderByDescending(o => o.Id).Skip((p - 1) * size).Take(size)
+            .Select(o => new
+            {
+                Order = o,
+                MakerUsername = db.Users.Where(u => u.Address == o.Maker).Select(u => u.Username).FirstOrDefault(),
+                TakerUsername = db.Users.Where(u => u.Address == o.Taker).Select(u => u.Username).FirstOrDefault(),
+            })
+            .ToListAsync(ct);
+
+        var now = time.GetUtcNow();
+        return Results.Ok(new Paged<object>(rows.Select(r => (object)new
+        {
+            id = r.Order.Id,
+            maker = EthAddress.ToChecksum(r.Order.Maker),
+            makerUsername = r.MakerUsername,
+            taker = r.Order.Taker is null ? null : EthAddress.ToChecksum(r.Order.Taker),
+            takerUsername = r.TakerUsername,
+            sellAsset = r.Order.SellAsset,
+            sellAmount = r.Order.SellAmount.ToString(CultureInfo.InvariantCulture),
+            buyAsset = r.Order.BuyAsset,
+            buyAmount = r.Order.BuyAmount.ToString(CultureInfo.InvariantCulture),
+            // An open order past its expiry can no longer be filled; the maker can still take the locked asset back.
+            status = r.Order.Status == SwapOrderStatus.Open && r.Order.ExpiresAt < now ? "Expired" : r.Order.Status.ToString(),
+            expiresAt = r.Order.ExpiresAt,
+            createTxHash = r.Order.CreateTxHash,
+            closeTxHash = r.Order.CloseTxHash,
+            createdAt = r.Order.CreatedAt,
+            closedAt = r.Order.ClosedAt,
+        }).ToList(), total, p, size));
     }
 
     private static async Task<IResult> ListTransfers(int? page, int? pageSize, ChainChatDbContext db, CancellationToken ct)

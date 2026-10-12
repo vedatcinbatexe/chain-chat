@@ -18,9 +18,9 @@ export interface SystemInfo {
   network: string;
   chainId: number;
   /** Deployed contract addresses by name: Registry, ChatToken, ClassBadge, Anchor. Empty before deployment. */
-  contracts: Partial<Record<'Registry' | 'ChatToken' | 'ClassBadge' | 'Anchor' | 'TestUSD' | 'TestBTC', Address>>;
+  contracts: Partial<Record<'Registry' | 'ChatToken' | 'ClassBadge' | 'Anchor' | 'TestUSD' | 'TestBTC' | 'SwapDesk', Address>>;
   /** The block each contract was deployed in (or shortly before): where reading its events starts. */
-  deployBlocks?: Partial<Record<'Registry' | 'ChatToken' | 'ClassBadge' | 'Anchor' | 'TestUSD' | 'TestBTC', number>>;
+  deployBlocks?: Partial<Record<'Registry' | 'ChatToken' | 'ClassBadge' | 'Anchor' | 'TestUSD' | 'TestBTC' | 'SwapDesk', number>>;
   /** ETH and the deployed ERC-20 tokens (CHAT, tUSD, tBTC, …). */
   assets?: AssetInfo[];
 }
