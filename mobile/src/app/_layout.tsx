@@ -10,13 +10,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { queryClient } from '@/api/queryClient';
 import { NotificationBanner } from '@/notifications/NotificationBanner';
-import { getThemes } from '@/theme/theme';
+import { getThemes, resolveScheme } from '@/theme/theme';
+import { useThemeStore } from '@/theme/themeStore';
 import { useWalletStore } from '@/wallet/walletStore';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const themes = getThemes(useColorScheme());
+  const systemScheme = useColorScheme();
+  const scheme = resolveScheme(useThemeStore((state) => state.preference), systemScheme);
+  const themes = getThemes(scheme);
   const status = useWalletStore((state) => state.status);
   const load = useWalletStore((state) => state.load);
 
@@ -44,7 +47,7 @@ export default function RootLayout() {
               <Stack.Screen name="join/[code]" options={{ headerShown: true, title: 'Group invite', headerBackTitle: 'Back' }} />
             </Stack>
             <NotificationBanner />
-            <StatusBar style="auto" />
+            <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
           </ThemeProvider>
         </PaperProvider>
       </QueryClientProvider>

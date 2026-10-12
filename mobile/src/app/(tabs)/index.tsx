@@ -54,6 +54,7 @@ export default function ChatsScreen() {
   return (
     <FlatList
       style={{ backgroundColor: theme.colors.background }}
+      contentContainerStyle={styles.list}
       data={conversations.data}
       keyExtractor={(c) => c.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -65,5 +66,6 @@ export default function ChatsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   loader: { marginTop: 48 },
+  list: { padding: 16, paddingBottom: 24 },
   actions: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 64 },
 });

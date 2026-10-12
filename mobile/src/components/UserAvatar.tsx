@@ -9,6 +9,12 @@ export function avatarColor(address: string): string {
   return COLORS[parseInt(address.slice(-2), 16) % COLORS.length];
 }
 
+/** The avatar color and a second one from the palette, for the banner behind a profile. */
+export function avatarGradient(address: string): [string, string] {
+  const index = parseInt(address.slice(-2), 16) % COLORS.length;
+  return [COLORS[index], COLORS[(index + 3) % COLORS.length]];
+}
+
 interface Props {
   username: string;
   address: string;

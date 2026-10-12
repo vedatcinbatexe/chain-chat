@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet } from 'react-native';
-import { List, Text, useTheme } from 'react-native-paper';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Icon, Text, useTheme } from 'react-native-paper';
 import { formatUnits } from 'viem';
 
 import type { ConversationSummary } from '@/api/conversations';
@@ -49,33 +49,46 @@ export function ConversationRow({ conversation }: { conversation: ConversationSu
       : router.push({ pathname: '/chat/[address]', params: { address: conversation.peer!.address } });
 
   return (
-    <List.Item
-      title={title}
-      titleStyle={styles.title}
-      description={isGroup ? `${conversation.group!.memberCount} members · ${preview}` : preview}
-      descriptionNumberOfLines={1}
-      onPress={open}
-      left={() =>
-        isGroup ? (
-          <UserAvatar username={conversation.group!.name} address={conversation.id} icon="account-group" />
-        ) : (
-          <UserAvatar username={conversation.peer!.username} address={conversation.peer!.address} online={peerOnline} />
-        )
-      }
-      right={() =>
-        last ? (
-          <Text variant="labelSmall" style={[styles.time, { color: theme.colors.onSurfaceVariant }]}>
-            {formatMessageTime(Number(last.clientTimestamp))}
+    <Pressable onPress={open} style={[styles.row, { backgroundColor: theme.colors.elevation.level1 }]}>
+      {isGroup ? (
+        <UserAvatar username={conversation.group!.name} address={conversation.id} icon="account-group" size={48} />
+      ) : (
+        <UserAvatar username={conversation.peer!.username} address={conversation.peer!.address} online={peerOnline} size={48} />
+      )}
+      <View style={styles.text}>
+        <View style={styles.line}>
+          <Text variant="titleMedium" style={styles.title} numberOfLines={1}>
+            {title}
           </Text>
-        ) : null
-      }
-      style={styles.row}
-    />
+          {last && (
+            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              {formatMessageTime(Number(last.clientTimestamp))}
+            </Text>
+          )}
+        </View>
+        <View style={styles.line}>
+          {isGroup && (
+            <View style={[styles.members, { backgroundColor: theme.colors.surfaceVariant }]}>
+              <Icon source="account-multiple" size={12} color={theme.colors.onSurfaceVariant} />
+              <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                {conversation.group!.memberCount}
+              </Text>
+            </View>
+          )}
+          <Text variant="bodyMedium" style={[styles.preview, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+            {preview}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { paddingLeft: 16 },
-  title: { fontWeight: '600' },
-  time: { alignSelf: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, marginBottom: 8 },
+  text: { flex: 1, minWidth: 0, gap: 4 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { flex: 1, fontWeight: '600' },
+  preview: { flex: 1 },
+  members: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
 });

@@ -2,16 +2,21 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Divider, Icon, Modal, Portal, SegmentedButtons, Text, useTheme } from 'react-native-paper';
+import { FlatList, Pressable, RefreshControl, ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Button, Chip, Divider, Icon, Modal, Portal, SegmentedButtons, Surface, Text, useTheme } from 'react-native-paper';
 import { formatUnits, type Hex } from 'viem';
 
 import { useSystemInfo } from '@/api/system';
 import { useActivity, useAnchors, type ActivityItem, type ActivityKind, type AnchorActivity } from '@/chain/activity';
+import { categoryOf, dailyCounts, directionOf, filterActivity, groupByDay, summarize, type ActivityFilter } from '@/chain/activityView';
 import { shorten } from '@/components/CopyableValue';
 import { EmptyState } from '@/components/EmptyState';
 import { env } from '@/config/env';
+import { useTones, type Tone } from '@/theme/palette';
 import { useWalletStore } from '@/wallet/walletStore';
+
+/** Height of the tallest bar in the 7-day chart. */
+const BAR_HEIGHT = 56;
 
 const ICONS: Record<ActivityKind, string> = {
   registered: 'account-check-outline',
@@ -78,11 +83,68 @@ interface Detail {
   rows: { label: string; value: string }[];
 }
 
+type Tones = ReturnType<typeof useTones>;
+
+const FILTERS: { value: ActivityFilter; label: string; icon: string }[] = [
+  { value: 'all', label: 'All', icon: 'format-list-bulleted' },
+  { value: 'payments', label: 'Payments', icon: 'cash-multiple' },
+  { value: 'swaps', label: 'Swaps', icon: 'swap-horizontal' },
+  { value: 'badges', label: 'Badges', icon: 'certificate-outline' },
+  { value: 'account', label: 'Account', icon: 'account-check-outline' },
+];
+
+/** The color an entry is drawn in: green in, orange out, violet swaps, amber badges. */
+function toneOf(item: ActivityItem, tones: Tones) {
+  const category = categoryOf(item.kind);
+  if (category === 'swaps') return tones.swap;
+  if (category === 'badges') return tones.badge;
+  if (category === 'account') return tones.neutral;
+  return directionOf(item.kind) === 'out' ? tones.out : tones.in;
+}
+
+/** A short title and, on the right, the amount that moved — e.g. "Sent to @bob" and "−50 CHAT". */
+function present(item: ActivityItem): { title: string; value?: string; note?: string } {
+  const amount = `${amountOf(item.amount)} ${item.symbol ?? ''}`.trim();
+  switch (item.kind) {
+    case 'registered':
+      return { title: `Registered @${item.username}` };
+    case 'key-updated':
+      return { title: 'Updated the encryption key' };
+    case 'token-sent':
+    case 'eth-sent':
+      return { title: `Sent to ${who(item)}`, value: `−${amount}` };
+    case 'token-received':
+      return { title: `Received from ${who(item)}`, value: `+${amount}` };
+    case 'eth-received':
+      return { title: 'Received ETH', value: `+${amount}` };
+    case 'token-faucet':
+      return { title: 'Faucet claim', value: `+${amount}` };
+    case 'token-minted':
+      return { title: 'Newly minted to you', value: `+${amount}` };
+    case 'badge-minted':
+      return { title: `${item.badge?.name} badge awarded`, note: `#${item.badge?.tokenId}` };
+    case 'badge-received':
+      return { title: `${item.badge?.name} badge from ${who(item)}`, note: `#${item.badge?.tokenId}` };
+    case 'badge-sent':
+      return { title: `${item.badge?.name} badge to ${who(item)}`, note: `#${item.badge?.tokenId}` };
+    case 'swap-offered':
+      return { title: `Swap offer #${item.swap?.id}`, value: item.swap?.gave, note: `for ${item.swap?.got}` };
+    case 'swap-completed':
+      return { title: `Swapped with ${who(item)}`, value: `+${item.swap?.got}`, note: `−${item.swap?.gave}` };
+    case 'swap-cancelled':
+      return { title: `Swap #${item.swap?.id} cancelled`, value: item.swap?.gave, note: 'returned' };
+  }
+}
+
+const formatClock = (timestamp: number | null) => (timestamp === null ? 'time unknown' : new Date(timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
+
 export default function ActivityScreen() {
   const theme = useTheme();
+  const tones = useTones();
   const queryClient = useQueryClient();
   const me = useWalletStore((state) => state.address);
   const [tab, setTab] = useState<'mine' | 'anchors'>('mine');
+  const [filter, setFilter] = useState<ActivityFilter>('all');
   const [detail, setDetail] = useState<Detail | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const activity = useActivity(me);
@@ -120,6 +182,10 @@ export default function ActivityScreen() {
 
   const query = tab === 'mine' ? activity : anchors;
   const refresh = <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />;
+  // "Today" is measured from when the list was read, which keeps rendering free of clock reads.
+  const now = activity.dataUpdatedAt;
+  const items = activity.data ?? [];
+  const sections = groupByDay(filterActivity(items, filter), now);
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
@@ -132,11 +198,6 @@ export default function ActivityScreen() {
           { value: 'anchors', label: 'Anchors', icon: 'anchor' },
         ]}
       />
-      <Text variant="bodySmall" style={[styles.hint, { color: theme.colors.onSurfaceVariant }]}>
-        {tab === 'mine'
-          ? 'Everything this wallet did on-chain, read from the blockchain itself.'
-          : 'Merkle roots of the message history, written to the Anchor contract. They are what makes tampering detectable.'}
-      </Text>
 
       {query.isPending ? (
         <ActivityIndicator style={styles.loader} />
@@ -150,22 +211,60 @@ export default function ActivityScreen() {
           </Button>
         </View>
       ) : tab === 'mine' ? (
-        <FlatList
-          data={activity.data}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.id}
           refreshControl={refresh}
           contentContainerStyle={styles.list}
-          ItemSeparatorComponent={Divider}
-          ListEmptyComponent={<EmptyState icon="history" title="No on-chain activity yet" description="Registering, payments, faucet claims and badges will appear here." />}
-          renderItem={({ item }) => (
-            <Row
-              icon={ICONS[item.kind]}
-              tone={item.kind.endsWith('sent') ? 'out' : 'in'}
-              title={describe(item)}
-              subtitle={`${formatTime(item.timestamp)} · block ${item.blockNumber.toLocaleString()}`}
-              onPress={() => openItem(item)}
-            />
+          stickySectionHeadersEnabled={false}
+          ListHeaderComponent={
+            <View style={styles.header}>
+              <SummaryCard items={items} now={now} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+                {FILTERS.map((option) => {
+                  const selected = filter === option.value;
+                  return (
+                    <Chip key={option.value} icon={option.icon} selected={selected} showSelectedCheck={false} mode={selected ? 'flat' : 'outlined'} onPress={() => setFilter(option.value)}>
+                      {option.label} {filterActivity(items, option.value).length}
+                    </Chip>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          }
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+                {section.title}
+              </Text>
+              <Text variant="labelMedium" style={{ color: theme.colors.outline }}>
+                {section.data.length} {section.data.length === 1 ? 'transaction' : 'transactions'}
+              </Text>
+            </View>
           )}
+          ListEmptyComponent={
+            items.length === 0 ? (
+              <EmptyState icon="history" title="No on-chain activity yet" description="Registering, payments, faucet claims and badges will appear here." />
+            ) : (
+              <EmptyState icon="filter-off-outline" title="Nothing in this filter" description="Choose another filter to see the rest of your activity." />
+            )
+          }
+          renderItem={({ item }) => {
+            const shown = present(item);
+            const tone = toneOf(item, tones);
+            return (
+              <Row
+                icon={ICONS[item.kind]}
+                tone={tone}
+                title={shown.title}
+                subtitle={`${formatClock(item.timestamp)} · block ${item.blockNumber.toLocaleString()}`}
+                value={shown.value}
+                valueColor={directionOf(item.kind) === 'neutral' ? theme.colors.onSurface : tone.color}
+                note={shown.note}
+                onPress={() => openItem(item)}
+              />
+            );
+          }}
         />
       ) : (
         <FlatList
@@ -173,14 +272,17 @@ export default function ActivityScreen() {
           keyExtractor={(anchor) => anchor.batchId.toString()}
           refreshControl={refresh}
           contentContainerStyle={styles.list}
-          ItemSeparatorComponent={Divider}
+          ListHeaderComponent={<AnchorSummary anchors={anchors.data ?? []} />}
           ListEmptyComponent={<EmptyState icon="anchor" title="Nothing anchored yet" description="The first batch is written to the chain shortly after the first messages." />}
           renderItem={({ item }) => (
             <Row
               icon="anchor"
-              tone="in"
-              title={`Batch ${item.batchId} · messages #${item.fromMessageId}–#${item.toMessageId}`}
+              tone={tones.neutral}
+              title={`Batch ${item.batchId}`}
               subtitle={`${formatTime(item.timestamp)} · block ${item.blockNumber.toLocaleString()}`}
+              value={`#${item.fromMessageId}–#${item.toMessageId}`}
+              valueColor={theme.colors.onSurface}
+              note={shorten(item.root, 6, 4)}
               onPress={() => openAnchor(item)}
             />
           )}
@@ -192,22 +294,145 @@ export default function ActivityScreen() {
   );
 }
 
-function Row({ icon, tone, title, subtitle, onPress }: { icon: string; tone: 'in' | 'out'; title: string; subtitle: string; onPress: () => void }) {
+/** Totals for the wallet and how busy each of the last seven days was. */
+function SummaryCard({ items, now }: { items: ActivityItem[]; now: number }) {
+  const theme = useTheme();
+  const tones = useTones();
+  const summary = summarize(items);
+  const days = dailyCounts(items, now);
+  const busiest = Math.max(1, ...days.map((day) => day.count));
+  const stats = [
+    { label: 'Received', value: summary.received, icon: 'arrow-bottom-left', tone: tones.in },
+    { label: 'Sent', value: summary.sent, icon: 'arrow-top-right', tone: tones.out },
+    { label: 'Swaps', value: summary.swaps, icon: 'swap-horizontal', tone: tones.swap },
+    { label: 'Badges', value: summary.badges, icon: 'certificate-outline', tone: tones.badge },
+  ];
+
+  return (
+    <Surface style={[styles.card, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+      <View style={styles.stats}>
+        {stats.map((stat) => (
+          <View key={stat.label} style={[styles.stat, { backgroundColor: stat.tone.soft }]}>
+            <Icon source={stat.icon} size={18} color={stat.tone.color} />
+            <Text variant="titleLarge" style={[styles.bold, { color: stat.tone.color }]}>
+              {stat.value}
+            </Text>
+            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={1}>
+              {stat.label}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.chartTitle}>
+        <Text variant="labelLarge">Last 7 days</Text>
+        <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+          {days.reduce((sum, day) => sum + day.count, 0)} transactions
+        </Text>
+      </View>
+      <View style={styles.bars}>
+        {days.map((day, index) => (
+          <View key={index} style={styles.barColumn}>
+            <Text variant="labelSmall" style={{ color: day.count > 0 ? theme.colors.onSurface : 'transparent' }}>
+              {day.count}
+            </Text>
+            <View style={styles.barTrack}>
+              <View
+                style={[
+                  styles.bar,
+                  { height: day.count === 0 ? 4 : Math.max(8, (day.count / busiest) * BAR_HEIGHT), backgroundColor: day.count === 0 ? theme.colors.surfaceVariant : day.today ? theme.colors.primary : theme.colors.primaryContainer },
+                ]}
+              />
+            </View>
+            <Text variant="labelSmall" style={{ color: day.today ? theme.colors.primary : theme.colors.onSurfaceVariant, fontWeight: day.today ? '700' : '400' }}>
+              {day.label}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <Text variant="labelSmall" style={[styles.centered, { color: theme.colors.outline }]}>
+        Read from the blockchain itself — the server is not asked what happened.
+      </Text>
+    </Surface>
+  );
+}
+
+/** What anchoring has covered so far. */
+function AnchorSummary({ anchors }: { anchors: AnchorActivity[] }) {
+  const theme = useTheme();
+  if (anchors.length === 0) return null;
+  const latest = anchors[0];
+  const messages = anchors.reduce((sum, anchor) => sum + Number(anchor.toMessageId - anchor.fromMessageId) + 1, 0);
+
+  return (
+    <Surface style={[styles.card, styles.header, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+      <View style={styles.stats}>
+        <View style={[styles.stat, { backgroundColor: theme.colors.primaryContainer }]}>
+          <Text variant="titleLarge" style={[styles.bold, { color: theme.colors.onPrimaryContainer }]}>
+            {latest.batchId.toString()}
+          </Text>
+          <Text variant="labelSmall" style={{ color: theme.colors.onPrimaryContainer }}>
+            Latest batch
+          </Text>
+        </View>
+        <View style={[styles.stat, { backgroundColor: theme.colors.secondaryContainer }]}>
+          <Text variant="titleLarge" style={[styles.bold, { color: theme.colors.onSecondaryContainer }]}>
+            {messages.toLocaleString()}
+          </Text>
+          <Text variant="labelSmall" style={{ color: theme.colors.onSecondaryContainer }}>
+            Messages in the last {anchors.length}
+          </Text>
+        </View>
+      </View>
+      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+        Merkle roots of the message history, written to the Anchor contract. They are what makes tampering detectable.
+      </Text>
+    </Surface>
+  );
+}
+
+interface RowProps {
+  icon: string;
+  tone: Tone;
+  title: string;
+  subtitle: string;
+  /** The amount on the right, e.g. "+50 CHAT". */
+  value?: string;
+  valueColor: string;
+  /** A second, quieter line under the amount. */
+  note?: string;
+  onPress: () => void;
+}
+
+function Row({ icon, tone, title, subtitle, value, valueColor, note, onPress }: RowProps) {
   const theme = useTheme();
   return (
-    <Pressable onPress={onPress} style={styles.row} accessibilityHint="Shows the transaction">
-      <View style={[styles.rowIcon, { backgroundColor: tone === 'out' ? theme.colors.surfaceVariant : theme.colors.primaryContainer }]}>
-        <Icon source={icon} size={20} color={tone === 'out' ? theme.colors.onSurfaceVariant : theme.colors.primary} />
+    <Pressable onPress={onPress} style={[styles.row, { backgroundColor: theme.colors.elevation.level1 }]} accessibilityHint="Shows the transaction">
+      <View style={[styles.rowIcon, { backgroundColor: tone.soft }]}>
+        <Icon source={icon} size={20} color={tone.color} />
       </View>
       <View style={styles.rowText}>
-        <Text variant="bodyLarge" numberOfLines={2}>
+        <Text variant="titleSmall" numberOfLines={2}>
           {title}
         </Text>
-        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={1}>
           {subtitle}
         </Text>
       </View>
-      <Icon source="chevron-right" size={20} color={theme.colors.outline} />
+      {(value || note) && (
+        <View style={styles.rowValue}>
+          {value && (
+            <Text variant="titleSmall" style={[styles.bold, { color: valueColor }]} numberOfLines={1}>
+              {value}
+            </Text>
+          )}
+          {note && (
+            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={1}>
+              {note}
+            </Text>
+          )}
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -274,14 +499,26 @@ function DetailSheet({ detail, onDismiss }: { detail: Detail | null; onDismiss: 
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  tabs: { marginHorizontal: 16, marginTop: 12 },
-  hint: { marginHorizontal: 20, marginTop: 8, marginBottom: 4 },
+  tabs: { marginHorizontal: 16, marginTop: 12, marginBottom: 4 },
   loader: { marginTop: 48 },
   error: { alignItems: 'center', gap: 12, marginTop: 48 },
-  list: { flexGrow: 1, paddingBottom: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  list: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
+  header: { gap: 12, marginBottom: 4 },
+  card: { borderRadius: 20, padding: 16, gap: 14 },
+  stats: { flexDirection: 'row', gap: 8 },
+  stat: { flex: 1, minWidth: 0, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center', gap: 2 },
+  bold: { fontWeight: '700' },
+  chartTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  bars: { flexDirection: 'row', gap: 8 },
+  barColumn: { flex: 1, alignItems: 'center', gap: 4 },
+  barTrack: { height: BAR_HEIGHT, alignSelf: 'stretch', justifyContent: 'flex-end' },
+  bar: { borderRadius: 6 },
+  filters: { gap: 8, paddingRight: 4 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 14, marginBottom: 8, paddingHorizontal: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, marginBottom: 8 },
+  rowIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   rowText: { flex: 1, minWidth: 0, gap: 2 },
+  rowValue: { alignItems: 'flex-end', maxWidth: '45%', gap: 2 },
   sheet: { marginHorizontal: 20, borderRadius: 24, padding: 20 },
   sheetTitle: { fontWeight: '700' },
   sheetDivider: { marginVertical: 10 },

@@ -8,12 +8,16 @@ import type { Address } from 'viem';
 import { useSystemInfo } from '@/api/system';
 import { useUserProfile } from '@/api/users';
 import { readRegistration } from '@/chain/registry';
+import { buildPortfolio, formatUsd } from '@/chain/portfolio';
+import { useBalances } from '@/chain/useBalances';
+import { useLiveStore } from '@/chat/liveStore';
+import { BadgeShelf } from '@/components/BadgeShelf';
 import { BadgesSheet } from '@/components/BadgesSheet';
 import { InfoRow } from '@/components/InfoRow';
 import { ProfileHeader } from '@/components/ProfileHeader';
 import { SectionCard } from '@/components/SectionCard';
 import { ErrorScreen, LoadingScreen } from '@/components/StatusScreens';
-import { TokenBalances } from '@/components/TokenBalances';
+import { PortfolioCard } from '@/components/PortfolioCard';
 import { useWalletStore } from '@/wallet/walletStore';
 
 export default function UserProfileScreen() {
@@ -24,6 +28,8 @@ export default function UserProfileScreen() {
   const myAddress = useWalletStore((state) => state.address);
   const system = useSystemInfo();
   const profile = useUserProfile(address);
+  const balances = useBalances(profile.data?.address);
+  const online = useLiveStore((state) => state.online);
   const [refreshing, setRefreshing] = useState(false);
   const [showBadges, setShowBadges] = useState(false);
 
@@ -66,11 +72,21 @@ export default function UserProfileScreen() {
       <ProfileHeader
         username={user.username}
         address={user.address}
+        online={isMe || !!online[user.address.toLowerCase()]}
+        stats={[
+          { icon: 'chart-donut', label: 'Est. value', value: balances.data && formatUsd(buildPortfolio(balances.data.assets).total) },
+          { icon: 'certificate-outline', label: 'Badges', value: balances.data && (balances.data.badges === null ? '—' : String(balances.data.badges)) },
+          { icon: 'cube-outline', label: 'Since block', value: user.registeredAtBlock.toLocaleString() },
+        ]}
         chips={
           <>
-            {isMe && (
+            {isMe ? (
               <Chip compact icon="account">
                 This is you
+              </Chip>
+            ) : (
+              <Chip compact icon={online[user.address.toLowerCase()] ? 'circle' : 'circle-outline'}>
+                {online[user.address.toLowerCase()] ? 'Online' : 'Offline'}
               </Chip>
             )}
             {verification === 'verified' && (
@@ -96,14 +112,18 @@ export default function UserProfileScreen() {
 
       <KeyVerificationBanner state={verification} />
 
-      <SectionCard title="Holdings" icon="wallet-outline" subtitle={system.data ? `${system.data.network} · chain ${system.data.chainId}` : undefined}>
-        <TokenBalances address={user.address} />
-        {system.data?.contracts.ClassBadge && (
-          <Button mode="outlined" icon="certificate-outline" onPress={() => setShowBadges(true)}>
-            View badges
-          </Button>
-        )}
+      <SectionCard title="Portfolio" icon="chart-donut" subtitle={system.data ? `${system.data.network} · chain ${system.data.chainId}` : undefined}>
+        <PortfolioCard address={user.address} />
       </SectionCard>
+
+      {system.data?.contracts.ClassBadge && (
+        <SectionCard title="Badges" icon="certificate-outline" subtitle="NFTs (ERC-721) that unlock badge-gated groups">
+          <BadgeShelf address={user.address} emptyText={isMe ? 'You hold no badges yet.' : `@${user.username} holds no badges yet.`} onPress={() => setShowBadges(true)} />
+          <Button mode="text" icon="format-list-bulleted" onPress={() => setShowBadges(true)}>
+            All badge types
+          </Button>
+        </SectionCard>
+      )}
       <BadgesSheet address={user.address} title={isMe ? 'My badges' : `@${user.username}'s badges`} visible={showBadges} onDismiss={() => setShowBadges(false)} />
 
       <SectionCard title="Identity & keys" icon="key-outline">

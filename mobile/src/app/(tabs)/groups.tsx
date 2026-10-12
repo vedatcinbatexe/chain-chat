@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Chip, Dialog, HelperText, Portal, Text, TextInput, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Button, Chip, Dialog, HelperText, Icon, Portal, Surface, Text, TextInput, useTheme } from 'react-native-paper';
 
 import { conversationsQueryKey, useConversations } from '@/api/conversations';
 import { describeError } from '@/api/errors';
@@ -70,20 +70,61 @@ export default function GroupsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.actions}>
-        <Button mode="contained" icon="plus" onPress={() => open('create')} style={styles.flex}>
-          New group
-        </Button>
-        <Button mode="contained-tonal" icon="link-variant" onPress={() => open('join')} style={styles.flex}>
-          Join with link
-        </Button>
-      </View>
-
-      {groups.length === 0 ? (
-        <EmptyState icon="account-group-outline" title="No groups yet" description="Create a group and share its invite link, or paste a link someone sent you." />
-      ) : (
-        <FlatList data={groups} keyExtractor={(c) => c.id} renderItem={({ item }) => <ConversationRow conversation={item} />} />
-      )}
+      <FlatList
+        data={groups}
+        keyExtractor={(c) => c.id}
+        contentContainerStyle={styles.list}
+        renderItem={({ item }) => <ConversationRow conversation={item} />}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Surface style={[styles.hero, { backgroundColor: theme.colors.primaryContainer }]} elevation={0}>
+              <View style={styles.heroTop}>
+                <View style={[styles.heroIcon, { backgroundColor: theme.colors.primary }]}>
+                  <Icon source="account-group" size={26} color={theme.colors.onPrimary} />
+                </View>
+                <View style={styles.heroText}>
+                  <Text variant="titleLarge" style={[styles.bold, { color: theme.colors.onPrimaryContainer }]}>
+                    Groups
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onPrimaryContainer }}>
+                    End-to-end encrypted. Can require badges (NFTs) to join.
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.stats}>
+                {[
+                  { label: groups.length === 1 ? 'Group' : 'Groups', value: groups.length },
+                  { label: 'Members', value: groups.reduce((sum, c) => sum + (c.group?.memberCount ?? 0), 0) },
+                  { label: 'My badges', value: ownedBadges.data?.length ?? 0 },
+                ].map((stat) => (
+                  <View key={stat.label} style={[styles.stat, { backgroundColor: theme.colors.elevation.level1 }]}>
+                    <Text variant="titleLarge" style={styles.bold}>
+                      {stat.value}
+                    </Text>
+                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={1}>
+                      {stat.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.actions}>
+                <Button mode="contained" icon="plus" onPress={() => open('create')} style={styles.flex}>
+                  New group
+                </Button>
+                <Button mode="elevated" icon="link-variant" onPress={() => open('join')} style={styles.flex}>
+                  Join with link
+                </Button>
+              </View>
+            </Surface>
+            {groups.length > 0 && (
+              <Text variant="labelLarge" style={[styles.sectionTitle, { color: theme.colors.onSurfaceVariant }]}>
+                Your groups
+              </Text>
+            )}
+          </View>
+        }
+        ListEmptyComponent={<EmptyState icon="account-group-outline" title="No groups yet" description="Create a group and share its invite link, or paste a link someone sent you." />}
+      />
 
       <Portal>
         <Dialog visible={dialog !== null} onDismiss={() => !busy && setDialog(null)}>
@@ -153,7 +194,17 @@ export default function GroupsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   loader: { marginTop: 48 },
-  actions: { flexDirection: 'row', gap: 10, padding: 16 },
+  list: { flexGrow: 1, padding: 16, paddingBottom: 24 },
+  header: { gap: 4 },
+  hero: { borderRadius: 24, padding: 16, gap: 14 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  heroText: { flex: 1, minWidth: 0 },
+  bold: { fontWeight: '700' },
+  stats: { flexDirection: 'row', gap: 8 },
+  stat: { flex: 1, minWidth: 0, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center' },
+  sectionTitle: { marginTop: 16, marginBottom: 8, paddingHorizontal: 4 },
+  actions: { flexDirection: 'row', gap: 10 },
   flex: { flex: 1 },
   hint: { marginBottom: 12 },
   badges: { gap: 6, marginTop: 14 },

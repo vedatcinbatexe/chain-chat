@@ -2,20 +2,25 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Chip, Dialog, Divider, HelperText, Portal, Text, TextInput, useTheme } from 'react-native-paper';
+import { Button, Chip, Dialog, Divider, HelperText, Portal, SegmentedButtons, Text, TextInput, useTheme } from 'react-native-paper';
 import { isAddress } from 'viem';
 
 import { useSystemInfo } from '@/api/system';
 import { claimFaucet } from '@/chain/chatToken';
 import { transferBadge, useOwnedBadges } from '@/chain/classBadge';
 import { useChatConnectionStore } from '@/chat/connection';
+import { buildPortfolio, formatUsd } from '@/chain/portfolio';
+import { useBalances } from '@/chain/useBalances';
+import { BadgeShelf } from '@/components/BadgeShelf';
 import { BadgesSheet } from '@/components/BadgesSheet';
 import { InfoRow } from '@/components/InfoRow';
 import { ProfileHeader } from '@/components/ProfileHeader';
 import { SectionCard } from '@/components/SectionCard';
-import { TokenBalances } from '@/components/TokenBalances';
+import { PortfolioCard } from '@/components/PortfolioCard';
 import { env } from '@/config/env';
 import { useOnboardingState } from '@/onboarding/useOnboardingState';
+import type { ThemePreference } from '@/theme/theme';
+import { useThemeStore } from '@/theme/themeStore';
 import { useWalletStore } from '@/wallet/walletStore';
 
 const CONNECTION_LABELS = {
@@ -40,6 +45,9 @@ export default function SettingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [faucet, setFaucet] = useState<{ busy: boolean; message: string | null }>({ busy: false, message: null });
   const ownedBadges = useOwnedBadges(address);
+  const balances = useBalances(address);
+  const themePreference = useThemeStore((state) => state.preference);
+  const setThemePreference = useThemeStore((state) => state.setPreference);
   const [badgeToken, setBadgeToken] = useState<bigint | null>(null);
   const [showBadges, setShowBadges] = useState(false);
   const [badgeDialog, setBadgeDialog] = useState(false);
@@ -119,6 +127,12 @@ export default function SettingsScreen() {
       <ProfileHeader
         username={username}
         address={address}
+        online={chatStatus === 'connected'}
+        stats={[
+          { icon: 'chart-donut', label: 'Est. value', value: balances.data && formatUsd(buildPortfolio(balances.data.assets).total) },
+          { icon: 'wallet-outline', label: 'Assets', value: balances.data && String(balances.data.assets.filter((asset) => asset.wei > 0n).length) },
+          { icon: 'certificate-outline', label: 'Badges', value: balances.data && (balances.data.badges === null ? '—' : String(balances.data.badges)) },
+        ]}
         chips={
           <Chip compact icon="shield-check-outline">
             Registered on-chain
@@ -126,8 +140,8 @@ export default function SettingsScreen() {
         }
       />
 
-      <SectionCard title="Assets" icon="wallet-outline" subtitle="Read directly from the blockchain">
-        <TokenBalances address={address} />
+      <SectionCard title="Portfolio" icon="chart-donut" subtitle="How your holdings are split">
+        <PortfolioCard address={address} />
         <View style={styles.actionsRow}>
           <Button mode="contained" icon="bank-transfer-out" style={styles.actionButton} onPress={() => router.push({ pathname: '/send', params: { to: 'exchange' } })}>
             Withdraw
@@ -144,33 +158,39 @@ export default function SettingsScreen() {
             Get 100 test CHAT
           </Button>
         )}
-        {system.data?.contracts.ClassBadge && (
-          <Button mode="outlined" icon="certificate-outline" onPress={() => setShowBadges(true)}>
-            View badges
-          </Button>
-        )}
-        {!!ownedBadges.data?.length && (
-          <View style={styles.contracts}>
-            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-              My badges (ERC-721) — they unlock badge-gated groups
-            </Text>
-            <View style={styles.chipWrap}>
-              {ownedBadges.data.map((owned) => (
-                <Chip key={owned.tokenId.toString()} compact icon="certificate-outline">
-                  {owned.type.name} #{owned.tokenId.toString()}
-                </Chip>
-              ))}
-            </View>
-            <Button mode="outlined" icon="send-outline" onPress={() => setBadgeDialog(true)}>
-              Transfer a badge
-            </Button>
-          </View>
-        )}
         {faucet.message && (
           <Text variant="bodySmall" style={[styles.centered, { color: theme.colors.onSurfaceVariant }]}>
             {faucet.message}
           </Text>
         )}
+      </SectionCard>
+
+      {system.data?.contracts.ClassBadge && (
+        <SectionCard title="Badges" icon="certificate-outline" subtitle="NFTs (ERC-721) that unlock badge-gated groups">
+          <BadgeShelf address={address} emptyText="No badges yet. An administrator can mint one to your wallet." onPress={() => setShowBadges(true)} />
+          <View style={styles.actionsRow}>
+            <Button mode="contained-tonal" icon="format-list-bulleted" style={styles.actionButton} onPress={() => setShowBadges(true)}>
+              All types
+            </Button>
+            {!!ownedBadges.data?.length && (
+              <Button mode="outlined" icon="send-outline" style={styles.actionButton} onPress={() => setBadgeDialog(true)}>
+                Transfer
+              </Button>
+            )}
+          </View>
+        </SectionCard>
+      )}
+
+      <SectionCard title="Appearance" icon="theme-light-dark" subtitle="Light, dark, or the same as this phone">
+        <SegmentedButtons
+          value={themePreference}
+          onValueChange={(value) => setThemePreference(value as ThemePreference)}
+          buttons={[
+            { value: 'system', label: 'System', icon: 'cellphone' },
+            { value: 'light', label: 'Light', icon: 'white-balance-sunny' },
+            { value: 'dark', label: 'Dark', icon: 'moon-waning-crescent' },
+          ]}
+        />
       </SectionCard>
 
       <SectionCard title="Identity & keys" icon="key-outline" subtitle="Your private keys never leave this phone">
