@@ -1,9 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Chip, List, Searchbar, useTheme } from 'react-native-paper';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Chip, Icon, IconButton, Searchbar, Surface, Text, useTheme } from 'react-native-paper';
 
+import { useConversations } from '@/api/conversations';
 import { normalizeSearch, useUserSearch, type UserSummary } from '@/api/users';
+import { useLiveStore } from '@/chat/liveStore';
 import { shorten } from '@/components/CopyableValue';
 import { DismissKeyboard } from '@/components/DismissKeyboard';
 import { EmptyState } from '@/components/EmptyState';
@@ -16,6 +18,8 @@ export default function SearchScreen() {
   const theme = useTheme();
   const router = useRouter();
   const myAddress = useWalletStore((state) => state.address);
+  const online = useLiveStore((state) => state.online);
+  const conversations = useConversations();
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
 
@@ -28,8 +32,44 @@ export default function SearchScreen() {
   const search = useUserSearch(query);
   const normalized = normalizeSearch(text);
   const invalid = normalized.length > 0 && !VALID_INPUT.test(normalized);
+  // Before anything is typed: the people this wallet already chats with.
+  const contacts = conversations.data?.flatMap((c) => (c.peer ? [c.peer] : [])) ?? [];
 
-  const open = (user: UserSummary) => router.push({ pathname: '/user/[address]', params: { address: user.address } });
+  const openProfile = (user: UserSummary) => router.push({ pathname: '/user/[address]', params: { address: user.address } });
+  const openChat = (user: UserSummary) => router.push({ pathname: '/chat/[address]', params: { address: user.address } });
+
+  const renderUser = ({ item }: { item: UserSummary }) => {
+    const isMe = item.address.toLowerCase() === myAddress?.toLowerCase();
+    return (
+      <Pressable onPress={() => openProfile(item)} style={[styles.row, { backgroundColor: theme.colors.elevation.level1 }]} accessibilityHint="Opens the profile">
+        <UserAvatar username={item.username} address={item.address} size={48} online={isMe || !!online[item.address.toLowerCase()]} />
+        <View style={styles.rowText}>
+          <Text variant="titleMedium" style={styles.bold} numberOfLines={1}>
+            @{item.username}
+          </Text>
+          <Text variant="labelMedium" style={[styles.address, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+            {shorten(item.address, 8, 6)}
+          </Text>
+        </View>
+        {isMe ? (
+          <Chip compact>You</Chip>
+        ) : (
+          <IconButton mode="contained-tonal" icon="message-lock-outline" size={20} onPress={() => openChat(item)} accessibilityLabel={`Message @${item.username}`} />
+        )}
+      </Pressable>
+    );
+  };
+
+  const sectionTitle = (title: string, count: number) => (
+    <View style={styles.sectionHeader}>
+      <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+        {title}
+      </Text>
+      <Text variant="labelMedium" style={{ color: theme.colors.outline }}>
+        {count}
+      </Text>
+    </View>
+  );
 
   return (
     <DismissKeyboard style={[styles.screen, { backgroundColor: theme.colors.background }]}>
@@ -40,12 +80,38 @@ export default function SearchScreen() {
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete="off"
-        style={styles.searchbar}
+        elevation={0}
+        style={[styles.searchbar, { backgroundColor: theme.colors.elevation.level1, borderColor: theme.colors.outlineVariant }]}
         loading={search.isFetching}
       />
 
       {normalized.length === 0 ? (
-        <EmptyState icon="account-search-outline" title="Find people" description="Search for a username, or paste a wallet address." />
+        <FlatList
+          data={contacts}
+          keyExtractor={(user) => user.address}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={styles.list}
+          renderItem={renderUser}
+          ListHeaderComponent={
+            <View>
+              <Surface style={[styles.tip, { backgroundColor: theme.colors.primaryContainer }]} elevation={0}>
+                <View style={[styles.tipIcon, { backgroundColor: theme.colors.primary }]}>
+                  <Icon source="account-search" size={24} color={theme.colors.onPrimary} />
+                </View>
+                <View style={styles.rowText}>
+                  <Text variant="titleMedium" style={[styles.bold, { color: theme.colors.onPrimaryContainer }]}>
+                    Find people
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onPrimaryContainer }}>
+                    Type the start of a username, or paste a full wallet address. Names come from the Registry contract.
+                  </Text>
+                </View>
+              </Surface>
+              {contacts.length > 0 && sectionTitle('People you chat with', contacts.length)}
+            </View>
+          }
+        />
       ) : invalid ? (
         <EmptyState icon="alert-circle-outline" title="Not a valid search" description="Usernames use lowercase letters, digits and _. Addresses start with 0x." />
       ) : search.isError ? (
@@ -60,22 +126,9 @@ export default function SearchScreen() {
           keyExtractor={(user) => user.address}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          renderItem={({ item }) => {
-            const isMe = item.address.toLowerCase() === myAddress?.toLowerCase();
-            return (
-              <List.Item
-                title={`@${item.username}`}
-                description={shorten(item.address)}
-                descriptionStyle={styles.address}
-                onPress={() => open(item)}
-                left={() => <UserAvatar username={item.username} address={item.address} />}
-                right={(props) => (
-                  <View style={[props.style, styles.right]}>{isMe ? <Chip compact>You</Chip> : <List.Icon color={props.color} icon="chevron-right" />}</View>
-                )}
-                style={styles.item}
-              />
-            );
-          }}
+          contentContainerStyle={styles.list}
+          ListHeaderComponent={search.data ? sectionTitle('Results', search.data.length) : null}
+          renderItem={renderUser}
         />
       )}
     </DismissKeyboard>
@@ -84,9 +137,14 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  searchbar: { margin: 12 },
+  searchbar: { marginHorizontal: 16, marginTop: 12, marginBottom: 4, borderRadius: 18, borderWidth: 1 },
   loader: { marginTop: 32 },
-  item: { paddingLeft: 16 },
+  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
+  tip: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, padding: 16 },
+  tipIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 14, marginBottom: 8, paddingHorizontal: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, marginBottom: 8 },
+  rowText: { flex: 1, minWidth: 0, gap: 2 },
+  bold: { fontWeight: '700' },
   address: { fontFamily: 'Menlo' },
-  right: { justifyContent: 'center' },
 });
