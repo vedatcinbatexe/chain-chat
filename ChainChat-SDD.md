@@ -2,7 +2,7 @@
 
 **Course:** BLM3730 Blockchain Basics — YTÜ
 **Document type:** Software Design Document (SDD)
-**Version:** 2.0 (MVP)
+**Version:** 2.1 (MVP)
 
 ---
 
@@ -56,6 +56,7 @@ ChainChat applies the cryptographic and structural building blocks covered in BL
 | 6 | Group chat with invite links, typing, presence and reactions; optional NFT gating: the creator chooses the badge types members must hold | Member keys resolved from chain; ERC-721 ownership checked on-chain for gated groups |
 | 7 | Signed, hash-chained messages with on-chain anchoring & verification | Wallet signatures + Merkle roots stored on-chain |
 | 8 | Blockchain activity screen: the wallet's own on-chain history and recent anchor batches, rebuilt in the app from contract events | Event logs read directly from the chain; explorer links for every transaction |
+| 12 | Swap offers in group and 1:1 chats, settled by a contract (§6.9) | Escrow and atomic settlement in a smart contract: both transfers happen or neither does |
 | 11 | End-to-end encrypted voice messages, photos and GIFs in 1:1 and group chats (§6.8) | The file's fingerprint is inside the signed, anchored message, so a changed recording or picture is detected |
 | 10 | Several assets, with deposits from and withdrawals to a simulated exchange (§4.5) | Native ETH and ERC-20 transfers signed on the device; balances read only from the chain |
 | 9 | Web admin dashboard (§4.4) | Wallet-based admin login; ERC-20 minting by the contract owner; shows what a server operator can and cannot do |
@@ -268,6 +269,7 @@ Four small contracts, each with a single responsibility:
 |---|---|---|---|
 | **Registry** | Custom | Maps username ↔ address ↔ encryption public key; unique usernames; key rotation | `UserRegistered`, `KeyUpdated` |
 | **ChatToken** | ERC-20 | Test currency for in-chat payments; rate-limited faucet for test users | `Transfer` |
+| **SwapDesk** | Escrow | Peer-to-peer swaps offered in chats: holds the maker's asset and settles both sides atomically; no owner, no fee | `OrderCreated`, `OrderFilled`, `OrderCancelled` |
 | **TestToken** | ERC-20 | Extra test assets (tUSD, tBTC): plain tokens with owner-only minting, for deposits, withdrawals and transfers | `Transfer` |
 | **ClassBadge** | ERC-721 | Badges with types (e.g. Student, Instructor) for gated groups; types created and badges minted by admin | `Transfer`, `BadgeTypeCreated` |
 | **Anchor** | Custom | Stores Merkle roots of message batches with batch ranges and timestamps; append-only | `RootAnchored` |
@@ -433,6 +435,18 @@ What this gives:
 
 **Reactions.** A reaction may be any single emoji. The server checks that it is exactly one emoji and nothing else, because reactions are stored in the clear (§8.3) and must not become a channel for unencrypted text.
 
+### 6.9 Swap Offers in a Chat
+Members of a chat can trade one asset for another directly with each other. A swap is settled by the `SwapDesk` contract, so neither side has to trust the other, or the server.
+
+1. In a group or a 1:1 chat, a user creates an offer: *I give 100 tUSD, I want 0.01 tBTC, valid for one hour.*
+2. The app calls `SwapDesk.createOrder`. The contract **takes the offered asset and holds it** (for a token after an `approve`; ETH is sent with the call) and returns an order id.
+3. The app posts a "swap offer" message with that id into the chat — encrypted and signed like any message.
+4. Every app that shows the message reads the order **from the contract**: the terms, whether it is still open, who accepted it. The message itself is only a pointer; if it describes other terms than the contract holds, the contract's terms are what is shown. An offer is also flagged if the order does not belong to the person who posted it.
+5. Any other member taps *Accept*. Their app calls `fillOrder`: in **one transaction** the contract pays the maker the requested asset from the taker and releases the held asset to the taker. If either transfer fails, the whole transaction reverts and nothing moves.
+6. Only the first acceptance succeeds; later ones revert because the order is no longer open. The maker can cancel an open or expired order at any time and gets the held asset back.
+
+The indexer mirrors the contract's events for the dashboard and notifies the maker when an offer is accepted. An order is public on-chain, so a wallet outside the chat could accept it as well — the chat is where offers are announced, not a restriction on who may take them.
+
 ---
 
 ## 7. Data Design
@@ -455,6 +469,7 @@ What this gives:
 - **AnchorBatch:** root, message range, tx hash, block number.
 - **ChainSyncState:** last processed block per contract (for indexer resume).
 - **GasDrip:** address, tx hash, timestamp (one per address).
+- **SwapOrder (§6.9):** a copy of the SwapDesk contract's orders (maker, taker, assets, amounts, status, transactions) for the dashboard.
 - **Attachment (§6.8):** id, uploader, size and the encrypted bytes of a voice message or an image.
 - **Assets (§4.5):** AssetTransfer (a history of deposits, withdrawals and transfers — not a ledger), ExchangeWallet (the simulated exchange's wallets and their keys).
 - **Admin dashboard (§4.4):** AdminAccount (admins added by root admins), BannedUser, AdminFunding (asset, amount, tx hash, admin), AdminAuditEntry (append-only), SystemSetting (runtime settings).

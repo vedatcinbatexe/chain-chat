@@ -22,7 +22,8 @@ The backend loads `{Chain:Network}.json` from `Chain:DeploymentsPath` at startup
     "ClassBadge": { "address": "0x…", "deployBlock": 1 },
     "Anchor":     { "address": "0x…", "deployBlock": 1 },
     "TestUSD":    { "address": "0x…", "deployBlock": 1 },
-    "TestBTC":    { "address": "0x…", "deployBlock": 1 }
+    "TestBTC":    { "address": "0x…", "deployBlock": 1 },
+    "SwapDesk":   { "address": "0x…", "deployBlock": 1 }
   }
 }
 ```
@@ -31,4 +32,4 @@ The backend loads `{Chain:Network}.json` from `Chain:DeploymentsPath` at startup
 
 ## ABIs
 
-`abi/Registry.json`, `abi/ChatToken.json`, `abi/ClassBadge.json`, `abi/Anchor.json`, `abi/TestToken.json` (shared by TestUSD and TestBTC) — exported with `forge inspect <Contract> abi --json` on every deploy, so clients don't need the Solidity build output.
+`abi/Registry.json`, `abi/ChatToken.json`, `abi/ClassBadge.json`, `abi/Anchor.json`, `abi/TestToken.json` (shared by TestUSD and TestBTC), `abi/SwapDesk.json` — exported with `forge inspect <Contract> abi --json` on every deploy, so clients don't need the Solidity build output.

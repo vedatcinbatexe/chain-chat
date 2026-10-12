@@ -59,6 +59,7 @@ public static class DependencyInjection
         services.TryAddSingleton<IGroupNotifier, NullGroupNotifier>(); // the API replaces it with SignalR
         services.TryAddSingleton<ChainChat.Infrastructure.Notifications.IUserNotifier, ChainChat.Infrastructure.Notifications.NullUserNotifier>();
         services.AddHostedService<BadgeIndexer>();
+        services.AddHostedService<SwapIndexer>();
 
         services.AddOptions<AnchoringOptions>()
             .Bind(configuration.GetSection(AnchoringOptions.SectionName))

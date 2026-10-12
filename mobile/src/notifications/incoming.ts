@@ -15,7 +15,7 @@ import { notify, useNotificationStore, type NotificationKind } from './store';
 
 /** The server's in-app notification (NotificationDto in the backend's ChatHub). */
 export interface ServerNotification {
-  kind: 'FundsReceived' | 'BadgeReceived' | 'RemovedFromGroup' | 'AccountBlocked' | 'AccountUnblocked' | 'Announcement' | string;
+  kind: 'FundsReceived' | 'BadgeReceived' | 'RemovedFromGroup' | 'AccountBlocked' | 'AccountUnblocked' | 'Announcement' | 'SwapFilled' | string;
   title: string;
   body: string;
   conversationId: string | null;
@@ -82,6 +82,7 @@ export async function notifyIncomingMessage(queryClient: QueryClient, message: M
 
 const KINDS: Record<string, NotificationKind> = {
   FundsReceived: 'funds',
+  SwapFilled: 'funds',
   BadgeReceived: 'badge',
   RemovedFromGroup: 'group',
   AccountBlocked: 'account',
@@ -92,6 +93,11 @@ const KINDS: Record<string, NotificationKind> = {
 /** Shows a server notification and refreshes what it is about (balances, badges, groups). */
 export function handleServerNotification(queryClient: QueryClient, notification: ServerNotification): void {
   switch (notification.kind) {
+    case 'SwapFilled':
+      queryClient.invalidateQueries({ queryKey: ['swap-order'] });
+      queryClient.invalidateQueries({ queryKey: ['balances'] });
+      queryClient.invalidateQueries({ queryKey: ['activity'] });
+      break;
     case 'FundsReceived':
       queryClient.invalidateQueries({ queryKey: ['balances'] });
       queryClient.invalidateQueries({ queryKey: ['activity'] });
@@ -115,6 +121,6 @@ export function handleServerNotification(queryClient: QueryClient, notification:
     title: notification.title,
     body: notification.body,
     createdAt: Date.parse(notification.createdAt) || undefined,
-    route: notification.kind === 'FundsReceived' || notification.kind === 'BadgeReceived' ? '/activity' : undefined,
+    route: notification.kind === 'FundsReceived' || notification.kind === 'BadgeReceived' || notification.kind === 'SwapFilled' ? '/activity' : undefined,
   });
 }

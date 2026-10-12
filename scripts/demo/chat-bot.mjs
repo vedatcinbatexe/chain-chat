@@ -3,7 +3,7 @@
 // as the app. It shows "typing…" before replying, verifies payments on-chain, and in groups also reacts with 👍.
 // LOCAL DEMO ONLY (see common.mjs).
 // Usage: node scripts/demo/chat-bot.mjs [bob|alice|carol] [group invite link or code]
-import { API, chain, conversationIdFor, demoUser, deployment, hashMessage, nacl, resolveUser, signalR, viem } from './common.mjs';
+import { API, RPC, anvil, chain, conversationIdFor, demoUser, deployment, hashMessage, nacl, resolveUser, signalR, viem } from './common.mjs';
 
 const { bytesToHex, hexToBytes, hexToString, stringToHex, recoverMessageAddress, parseAbi, parseEventLogs, formatUnits } = viem;
 const { name, account, encSecret } = demoUser(process.argv[2] ?? 'bob');
@@ -11,6 +11,11 @@ const { name, account, encSecret } = demoUser(process.argv[2] ?? 'bob');
 const tokens = Object.fromEntries(
   [['CHAT', 'ChatToken'], ['tUSD', 'TestUSD'], ['tBTC', 'TestBTC']].filter(([, name]) => deployment[name]).map(([symbol, name]) => [deployment[name].address.toLowerCase(), symbol]),
 );
+const erc20Abi = parseAbi(['function approve(address spender, uint256 value) returns (bool)', 'function balanceOf(address account) view returns (uint256)']);
+const swapAbi = parseAbi([
+  'function getOrder(uint256 id) view returns ((address maker, address taker, address sellToken, uint256 sellAmount, address buyToken, uint256 buyAmount, uint64 expiry, uint8 status))',
+  'function fillOrder(uint256 id) payable',
+]);
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), `[@${name}]`, ...a);
 
 async function signIn() {
@@ -208,11 +213,48 @@ connection.on('MessageReceived', async (m) => {
     }
   }
 
+  // A swap offer (SDD §6.9): read the order from the contract — not from the message — and accept it if it is
+  // really the sender's, still open, and the bot holds what the maker asks for.
+  if (payment?.$chainchat === 'swap' && deployment.SwapDesk) {
+    const desk = deployment.SwapDesk.address;
+    const ZERO = '0x0000000000000000000000000000000000000000';
+    const symbolOf = (token) => (token === ZERO ? 'ETH' : (tokens[token.toLowerCase()] ?? 'an unknown token'));
+    const show = (amount, token) => `${formatUnits(amount, 18)} ${symbolOf(token)}`;
+    try {
+      const id = BigInt(payment.orderId);
+      const order = await chain.readContract({ address: desk, abi: swapAbi, functionName: 'getOrder', args: [id] });
+      const offer = `${show(order.sellAmount, order.sellToken)} for ${show(order.buyAmount, order.buyToken)}`;
+      const balance = order.buyToken === ZERO
+        ? await chain.getBalance({ address: account.address })
+        : await chain.readContract({ address: order.buyToken, abi: erc20Abi, functionName: 'balanceOf', args: [account.address] });
+
+      if (order.maker.toLowerCase() !== m.sender.toLowerCase()) replyText = `🤖 Swap #${id} is not your order, so I will not touch it.`;
+      else if (order.status !== 1 || Number(order.expiry) * 1000 < Date.now()) replyText = `🤖 Swap #${id} is no longer open.`;
+      else if (balance < order.buyAmount) replyText = `🤖 I would take ${offer}, but I do not have ${show(order.buyAmount, order.buyToken)}.`;
+      else {
+        log(`  swap #${id}: ${offer} — accepting`);
+        const wallet = viem.createWalletClient({ account, chain: anvil, transport: viem.http(RPC) });
+        if (order.buyToken !== ZERO) {
+          await chain.waitForTransactionReceipt({ hash: await wallet.writeContract({ address: order.buyToken, abi: erc20Abi, functionName: 'approve', args: [desk, order.buyAmount] }) });
+        }
+        const hash = await wallet.writeContract({ address: desk, abi: swapAbi, functionName: 'fillOrder', args: [id], value: order.buyToken === ZERO ? order.buyAmount : 0n });
+        const receipt = await chain.waitForTransactionReceipt({ hash });
+        log(`  swap #${id}: ${receipt.status} in block ${receipt.blockNumber}`);
+        replyText = receipt.status === 'success'
+          ? `🤖 Deal! I accepted swap #${id}: I gave ${show(order.buyAmount, order.buyToken)} and received ${show(order.sellAmount, order.sellToken)} (block ${receipt.blockNumber}).`
+          : `🤖 I tried to accept swap #${id}, but the transaction was reverted.`;
+      }
+    } catch (error) {
+      log('  swap failed:', error.shortMessage ?? error.message);
+      replyText = `🤖 I could not accept that swap (${error.shortMessage ?? 'the order does not exist'}).`;
+    }
+  }
+
   // Group extras: react to the message and show "typing…" for a moment.
   const conversationId = group ? m.conversationId : conversationIdFor(account.address, m.sender);
   if (group) {
     await connection.invoke('React', m.id, '👍').catch((error) => log('reaction failed:', error.message));
-    if (payment?.$chainchat !== 'voice' && payment?.$chainchat !== 'image') replyText = `🤖 @${name} here — @${peer.username} said: "${text}"`;
+    if (!['voice', 'image', 'swap'].includes(payment?.$chainchat)) replyText = `🤖 @${name} here — @${peer.username} said: "${text}"`;
   }
   // Show "typing…" for a while (re-sent every 2 s, the apps drop it after 6 s without an update).
   log('  typing…');

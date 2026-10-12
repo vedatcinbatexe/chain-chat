@@ -14,6 +14,9 @@ import { addMessageToCache, loadPresence, toggleReaction, useChatConnectionStore
 import { describeTyping, useIsOnline, useTypingAddresses } from '@/chat/liveStore';
 import { formatPaymentPayload } from '@/chat/payment';
 import { sendTextMessage } from '@/chat/send';
+import { createSwapOrder } from '@/chain/swapDesk';
+import { SwapOfferSheet } from '@/chat/SwapOfferSheet';
+import { formatSwapPayload } from '@/chat/swap';
 import { pickImageMessage } from '@/chat/sendImage';
 import { prepareVoiceMessage } from '@/chat/sendVoice';
 import { SendPaymentSheet } from '@/chat/SendPaymentSheet';
@@ -64,6 +67,7 @@ export default function ChatScreen() {
   const [reactingTo, setReactingTo] = useState<VerifiedMessage | null>(null);
   const [reactionsOf, setReactionsOf] = useState<number | null>(null);
   const [paying, setPaying] = useState(false);
+  const [swapping, setSwapping] = useState(false);
   const system = useSystemInfo();
   const peerOnline = useIsOnline(address);
   const typing = useTypingAddresses(conversationId);
@@ -166,6 +170,7 @@ export default function ChatScreen() {
                 message={item.message}
                 groupedWithNext={item.groupedWithNext}
                 senderName={`@${peer.username}`}
+                nameOf={(address) => (address.toLowerCase() === me.toLowerCase() ? 'you' : address.toLowerCase() === peer.address.toLowerCase() ? `@${peer.username}` : `${address.slice(0, 6)}…${address.slice(-4)}`)}
                 recipient={item.message.mine ? peer.address : me}
                 me={me}
                 onPress={() => {
@@ -211,6 +216,7 @@ export default function ChatScreen() {
           send(text);
         }}
         onSendVoice={async (recording) => send(await prepareVoiceMessage(recording))}
+        onSwap={system.data?.contracts.SwapDesk ? () => setSwapping(true) : undefined}
         onSendImage={async () => {
           const picture = await pickImageMessage();
           if (picture) send(picture);
@@ -227,6 +233,16 @@ export default function ChatScreen() {
         me={me}
         nameOf={() => `@${peer.username}`}
         onDismiss={() => setReactionsOf(null)}
+      />
+      <SwapOfferSheet
+        visible={swapping}
+        onDismiss={() => setSwapping(false)}
+        onCreate={async (offer) => {
+          // Lock the offered asset in the swap contract first, then announce the order in the chat.
+          const { id } = await createSwapOrder(system.data!, offer.sell, offer.buy, Date.now() + offer.validForMs);
+          send(formatSwapPayload({ orderId: id.toString(), sell: { token: offer.sell.asset.symbol, amount: offer.sell.amount.toString() }, buy: { token: offer.buy.asset.symbol, amount: offer.buy.amount.toString() } }));
+          queryClient.invalidateQueries({ queryKey: ['balances'] });
+        }}
       />
       <SendPaymentSheet visible={paying} peerUsername={peer.username} onDismiss={() => setPaying(false)} onSend={sendPayment} />
     </KeyboardAvoidingView>

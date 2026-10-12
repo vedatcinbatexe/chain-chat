@@ -314,3 +314,35 @@ public class Attachment
     public required byte[] Content { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+public enum SwapOrderStatus
+{
+    Open,
+    Filled,
+    Cancelled,
+}
+
+/// <summary>
+/// A peer-to-peer swap offer in the SwapDesk contract (SDD §6.9), mirrored from its events for the dashboard.
+/// The contract is the authority: it holds the locked asset and settles the swap.
+/// </summary>
+public class SwapOrder
+{
+    /// <summary>The order id in the SwapDesk contract.</summary>
+    public long Id { get; set; }
+    public required string Maker { get; set; }
+    public string? Taker { get; set; }
+    /// <summary>What the maker gives: an asset symbol (ETH, CHAT, tUSD, …), or the address of an unknown token.</summary>
+    public required string SellAsset { get; set; }
+    public BigInteger SellAmount { get; set; }
+    /// <summary>What the maker wants in return.</summary>
+    public required string BuyAsset { get; set; }
+    public BigInteger BuyAmount { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public SwapOrderStatus Status { get; set; }
+    public required string CreateTxHash { get; set; }
+    /// <summary>The transaction that filled or cancelled the order.</summary>
+    public string? CloseTxHash { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ClosedAt { get; set; }
+}

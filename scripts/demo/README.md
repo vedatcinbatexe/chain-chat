@@ -39,6 +39,8 @@ node scripts/demo/chat-bot.mjs bob
 
 - **Payments:** when it receives a payment message (ETH or any token), it checks the transaction on-chain before
   thanking the sender.
+- **Swap offers:** it reads the order from the swap contract and accepts it if it is really the sender's, still
+  open, and the bot holds what is asked — whatever the price, so do not offer it a bad deal for you.
 - **Voice messages, photos and GIFs:** it downloads the encrypted file, checks it against the fingerprint in the
   signed message and decrypts it, then replies with what it received.
 - **Groups:** pass an invite link or code as the second argument and the bot joins that group first. In groups it
