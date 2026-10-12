@@ -544,6 +544,10 @@ namespace ChainChat.Infrastructure.Persistence.Migrations
                         .HasColumnType("bytea")
                         .HasColumnName("ciphertext");
 
+                    b.Property<string>("CiphertextHash")
+                        .HasColumnType("text")
+                        .HasColumnName("ciphertext_hash");
+
                     b.Property<decimal>("ClientTimestamp")
                         .HasColumnType("numeric(20,0)")
                         .HasColumnName("client_timestamp");
@@ -553,6 +557,10 @@ namespace ChainChat.Infrastructure.Persistence.Migrations
                         .HasMaxLength(66)
                         .HasColumnType("character varying(66)")
                         .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
 
                     b.Property<int?>("LeafIndex")
                         .HasColumnType("integer")

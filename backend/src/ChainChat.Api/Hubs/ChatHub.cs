@@ -29,6 +29,9 @@ public interface IChatClient
     /// <summary>A payment claim was confirmed or rejected from its on-chain receipt.</summary>
     Task PaymentUpdated(PaymentUpdateDto update);
 
+    /// <summary>The sender deleted a message: its content is gone, the signed header remains.</summary>
+    Task MessageDeleted(MessageDto message);
+
     Task TypingChanged(TypingDto typing);
 
     Task PresenceChanged(PresenceDto presence);
@@ -93,6 +96,22 @@ public sealed class ChatHub(
         catch (MessageRejectedException ex)
         {
             // HubException messages are sent to the caller; anything else is hidden as a generic error.
+            throw new HubException(ex.Code);
+        }
+    }
+
+    /// <summary>Deletes one of the caller's own messages for everyone. Returns what is left of it.</summary>
+    public async Task<MessageDto> DeleteMessage(long messageId)
+    {
+        try
+        {
+            var (message, audience) = await messages.DeleteAsync(Me, messageId, Context.ConnectionAborted);
+            var dto = MessageDto.From(message);
+            await Clients.Users(audience).MessageDeleted(dto);
+            return dto;
+        }
+        catch (MessageRejectedException ex)
+        {
             throw new HubException(ex.Code);
         }
     }

@@ -20,7 +20,11 @@ public sealed record MessageDto(
     string ClientTimestamp,
     DateTimeOffset ServerReceivedAt,
     PaymentDto? Payment,
-    IReadOnlyList<ChainChat.Infrastructure.Messaging.ReactionSummary> Reactions)
+    IReadOnlyList<ChainChat.Infrastructure.Messaging.ReactionSummary> Reactions,
+    /// <summary>Set when the sender deleted the message; <see cref="Ciphertext"/> is then empty ("0x").</summary>
+    DateTimeOffset? DeletedAt = null,
+    /// <summary>keccak256 of the erased ciphertext of a deleted message — what apps need to recompute its hash.</summary>
+    string? CiphertextHash = null)
 {
     public static MessageDto From(Message m, Payment? payment = null, IReadOnlyList<ChainChat.Infrastructure.Messaging.ReactionSummary>? reactions = null) => new(
         m.Id,
@@ -34,7 +38,9 @@ public sealed record MessageDto(
         m.ClientTimestamp.ToString(CultureInfo.InvariantCulture),
         m.ServerReceivedAt,
         payment is null ? null : PaymentDto.From(payment),
-        reactions ?? []);
+        reactions ?? [],
+        m.DeletedAt,
+        m.CiphertextHash);
 }
 
 /// <summary>

@@ -1,8 +1,8 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { Icon, ProgressBar, Text, useTheme } from 'react-native-paper';
+import { Icon, IconButton, ProgressBar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Address, Hex } from 'viem';
 
@@ -20,8 +20,10 @@ import { formatSwapPayload } from '@/chat/swap';
 import { pickImageMessage } from '@/chat/sendImage';
 import { prepareVoiceMessage } from '@/chat/sendVoice';
 import { SendPaymentSheet } from '@/chat/SendPaymentSheet';
-import { buildRows, ConnectionBar, DaySeparator, EmptyConversation, LoadingHistory, MessageBubble, PendingBubble, type PendingMessage } from '@/chat/ui/ChatParts';
+import { ConnectionBar, DaySeparator, EmptyConversation, LoadingHistory, MessageBubble, PendingBubble, type PendingMessage, type Row } from '@/chat/ui/ChatParts';
+import { ChatSearchBar } from '@/chat/ui/ChatSearchBar';
 import { Composer } from '@/chat/ui/Composer';
+import { useChatTools } from '@/chat/useChatTools';
 import { ReactionPicker } from '@/chat/ui/ReactionPicker';
 import { ReactionsSheet } from '@/chat/ui/ReactionsSheet';
 import { usePeer } from '@/chat/usePeer';
@@ -46,7 +48,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { address } = useLocalSearchParams<{ address: string }>();
+  const { address, focus } = useLocalSearchParams<{ address: string; focus?: string }>();
   const me = useWalletStore((state) => state.address)!;
   const connection = useChatConnectionStore((state) => state.status);
   const { peer, isLoading, isError, notRegistered, refetch } = usePeer(address);
@@ -80,11 +82,18 @@ export default function ChatScreen() {
 
   // Verify and decrypt on this phone; re-run whenever the message list or the peer's on-chain key changes.
   const verified = useQuery({
-    queryKey: ['verified', conversationId, messages.data?.map((m) => m.id).join(','), peer?.encryptionKey],
+    queryKey: ['verified', conversationId, messages.data?.map((m) => `${m.id}${m.deletedAt ? 'x' : ''}`).join(','), peer?.encryptionKey],
     enabled: !!messages.data && !!peer,
     queryFn: () => verifyMessages(messages.data!, me, peer!.encryptionKey, getEncryptionKeyPair().secretKey),
     placeholderData: keepPreviousData,
   });
+
+  const nameOf = (other: string) =>
+    other.toLowerCase() === me.toLowerCase() ? 'You' : peer && other.toLowerCase() === peer.address.toLowerCase() ? `@${peer.username}` : `${other.slice(0, 6)}…${other.slice(-4)}`;
+  const listRef = useRef<FlatList<Row>>(null);
+  const tools = useChatTools({ listRef, messages: verified.data ?? [], pending, nameOf, focusId: focus ? Number(focus) : null, onVerify: setSelected });
+  // Rows are drawn again when a reaction arrives or another message is marked.
+  const listState = useMemo(() => ({ messages: messages.data, highlighted: tools.highlightedId }), [messages.data, tools.highlightedId]);
 
   if (isLoading) return <LoadingScreen label="Reading their key from the blockchain…" />;
   if (isError) return <ErrorScreen message="Could not read this user from the Registry contract." onRetry={() => refetch()} />;
@@ -119,7 +128,6 @@ export default function ChatScreen() {
   const loadingHistory = messages.isPending || (!!messages.data?.length && !verified.data);
   // Reactions come straight from the message cache, so they update the moment the hub reports them.
   const liveReactions = new Map(messages.data?.map((m) => [m.id, m.reactions ?? []]));
-  const rows = buildRows(verified.data ?? [], pending);
   const subtitle = typing.length > 0 ? describeTyping([`@${peer.username}`]) : peerOnline ? 'Online' : 'End-to-end encrypted';
 
   return (
@@ -145,17 +153,21 @@ export default function ChatScreen() {
               </View>
             </Pressable>
           ),
+          headerRight: () => <IconButton icon="magnify" onPress={tools.openSearch} accessibilityLabel="Search this chat" />,
         }}
       />
 
       <ProgressBar indeterminate visible={loadingHistory} color={theme.colors.primary} style={styles.progress} />
       {!connected && <ConnectionBar reconnecting={connection === 'reconnecting'} />}
+      {tools.searching && <ChatSearchBar filter={tools.filter} onChange={tools.setFilter} matchCount={tools.filtering ? tools.matchCount : null} onClose={tools.closeSearch} />}
 
       <DismissKeyboard>
         <FlatList
           inverted
-          data={rows}
-          extraData={messages.data}
+          ref={listRef}
+          data={tools.rows}
+          extraData={listState}
+          onScrollToIndexFailed={tools.onScrollToIndexFailed}
           keyExtractor={(row) => (row.kind === 'message' ? `m${row.message.dto.id}` : row.kind === 'pending' ? `p${row.pending.key}` : row.key)}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
@@ -175,8 +187,13 @@ export default function ChatScreen() {
                 me={me}
                 onPress={() => {
                   Keyboard.dismiss();
-                  setSelected(item.message);
+                  // While searching, a tap shows the message in its place in the conversation.
+                  if (tools.filtering) tools.jumpTo(item.message.dto.id);
+                  else setSelected(item.message);
                 }}
+                quote={tools.quoteOf(item.message)}
+                onPressQuote={tools.jumpTo}
+                highlighted={tools.highlightedId === item.message.dto.id}
                 onLongPress={() => {
                   Keyboard.dismiss();
                   setReactingTo(item.message);
@@ -188,7 +205,7 @@ export default function ChatScreen() {
             )
           }
           ListEmptyComponent={
-            loadingHistory ? (
+            tools.filtering ? null : loadingHistory ? (
               <LoadingHistory />
             ) : (
               <EmptyConversation
@@ -197,7 +214,7 @@ export default function ChatScreen() {
                 points={[
                   { icon: 'lock-outline', text: `Encrypted with @${peer.username}'s key from the blockchain — the server only stores ciphertext.` },
                   { icon: 'draw-pen', text: 'Every message is signed by your wallet and linked to your previous one.' },
-                  { icon: 'anchor', text: 'Batches are anchored on-chain. Tap a message to verify it, long-press to react.' },
+                  { icon: 'anchor', text: 'Batches are anchored on-chain. Tap a message to verify it, long-press to react, reply or delete.' },
                 ]}
               />
             )
@@ -213,8 +230,10 @@ export default function ChatScreen() {
           const text = draft.trim();
           if (!text) return;
           setDraft('');
-          send(text);
+          send(tools.outgoing(text));
         }}
+        replyingTo={tools.replyPreview}
+        onCancelReply={tools.cancelReply}
         onSendVoice={async (recording) => send(await prepareVoiceMessage(recording))}
         onSwap={system.data?.contracts.SwapDesk ? () => setSwapping(true) : undefined}
         onSendImage={async () => {
@@ -227,7 +246,13 @@ export default function ChatScreen() {
       />
 
       <VerifySheet message={selected} peerUsername={peer.username} onDismiss={() => setSelected(null)} />
-      <ReactionPicker visible={!!reactingTo} onDismiss={() => setReactingTo(null)} onSelect={(emoji) => reactingTo && react(reactingTo, emoji)} />
+      <ReactionPicker
+        visible={!!reactingTo}
+        onDismiss={() => setReactingTo(null)}
+        onSelect={(emoji) => reactingTo && react(reactingTo, emoji)}
+        actions={reactingTo ? tools.actionsFor(reactingTo) : []}
+        canReact={!reactingTo?.deleted}
+      />
       <ReactionsSheet
         reactions={reactionsOf === null ? null : (liveReactions.get(reactionsOf) ?? [])}
         me={me}

@@ -1,8 +1,8 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { Icon, ProgressBar, Text, useTheme } from 'react-native-paper';
+import { Icon, IconButton, ProgressBar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Hex } from 'viem';
 
@@ -19,8 +19,10 @@ import { SwapOfferSheet } from '@/chat/SwapOfferSheet';
 import { formatSwapPayload } from '@/chat/swap';
 import { pickImageMessage } from '@/chat/sendImage';
 import { prepareVoiceMessage } from '@/chat/sendVoice';
-import { buildRows, ConnectionBar, DaySeparator, EmptyConversation, LoadingHistory, MessageBubble, PendingBubble, type PendingMessage } from '@/chat/ui/ChatParts';
+import { ConnectionBar, DaySeparator, EmptyConversation, LoadingHistory, MessageBubble, PendingBubble, type PendingMessage, type Row } from '@/chat/ui/ChatParts';
+import { ChatSearchBar } from '@/chat/ui/ChatSearchBar';
 import { Composer } from '@/chat/ui/Composer';
+import { useChatTools } from '@/chat/useChatTools';
 import { ReactionPicker } from '@/chat/ui/ReactionPicker';
 import { ReactionsSheet } from '@/chat/ui/ReactionsSheet';
 import { useMemberKeys } from '@/chat/useMemberKeys';
@@ -47,7 +49,7 @@ export default function GroupChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
   const groupId = id.toLowerCase() as Hex;
   const me = useWalletStore((state) => state.address)!;
   const connection = useChatConnectionStore((state) => state.status);
@@ -91,7 +93,7 @@ export default function GroupChatScreen() {
 
   // Verify and decrypt on this phone: each message with its sender's on-chain key.
   const verified = useQuery({
-    queryKey: ['verified', groupId, messages.data?.map((m) => m.id).join(','), Object.keys(keys).sort().join(',')],
+    queryKey: ['verified', groupId, messages.data?.map((m) => `${m.id}${m.deletedAt ? 'x' : ''}`).join(','), Object.keys(keys).sort().join(',')],
     enabled: !!messages.data && keysReady,
     queryFn: () =>
       verifyMessagesWith(messages.data!, me, (dto) => {
@@ -101,14 +103,28 @@ export default function GroupChatScreen() {
     placeholderData: keepPreviousData,
   });
 
+  const nameOf = (address: string) => {
+    const username = keys[address.toLowerCase()]?.username ?? group.data?.members.find((m) => m.address.toLowerCase() === address.toLowerCase())?.username;
+    return username ? `@${username}` : shorten(address, 6, 4);
+  };
+  // Messages from before this member joined were never encrypted to their key: they are counted, not shown.
+  const readable = (verified.data ?? []).filter((m) => m.deleted || m.text !== null || isGroupMessageFor(m.dto.ciphertext, me));
+  const listRef = useRef<FlatList<Row>>(null);
+  const tools = useChatTools({
+    listRef,
+    messages: readable,
+    pending,
+    nameOf: (address) => (address.toLowerCase() === me.toLowerCase() ? 'You' : nameOf(address)),
+    focusId: focus ? Number(focus) : null,
+    onVerify: setSelected,
+  });
+  // Rows are drawn again when a reaction arrives or another message is marked.
+  const listState = useMemo(() => ({ messages: messages.data, highlighted: tools.highlightedId }), [messages.data, tools.highlightedId]);
+
   if (group.isPending) return <LoadingScreen label="Loading group…" />;
   if (group.isError) return <ErrorScreen message="This group does not exist, or you are not a member." onRetry={() => group.refetch()} />;
 
   const info = group.data;
-  const nameOf = (address: string) => {
-    const username = keys[address.toLowerCase()]?.username ?? info.members.find((m) => m.address.toLowerCase() === address.toLowerCase())?.username;
-    return username ? `@${username}` : shorten(address, 6, 4);
-  };
 
   // Encrypt to every current member whose key is on-chain (this always includes the sender) — and, in a gated
   // group, only to members who hold every required badge right now, whatever the server's member list says.
@@ -147,10 +163,7 @@ export default function GroupChatScreen() {
   const loadingHistory = messages.isPending || (!!messages.data?.length && !verified.data);
   // Reactions come straight from the message cache, so they update the moment the hub reports them.
   const liveReactions = new Map(messages.data?.map((m) => [m.id, m.reactions ?? []]));
-  // Messages from before this member joined were never encrypted to their key: they are counted, not shown.
-  const readable = (verified.data ?? []).filter((m) => m.text !== null || isGroupMessageFor(m.dto.ciphertext, me));
   const beforeJoining = (verified.data?.length ?? 0) - readable.length;
-  const rows = buildRows(readable, pending);
   const subtitle = describeTyping(typing.map(nameOf)) ?? `${badgeGate ? '🎖 ' : ''}${info.members.length} members · ${onlineCount} online`;
 
   return (
@@ -173,17 +186,21 @@ export default function GroupChatScreen() {
               </View>
             </Pressable>
           ),
+          headerRight: () => <IconButton icon="magnify" onPress={tools.openSearch} accessibilityLabel="Search this group" />,
         }}
       />
 
       <ProgressBar indeterminate visible={loadingHistory} color={theme.colors.primary} style={styles.progress} />
       {!connected && <ConnectionBar reconnecting={connection === 'reconnecting'} />}
+      {tools.searching && <ChatSearchBar filter={tools.filter} onChange={tools.setFilter} matchCount={tools.filtering ? tools.matchCount : null} onClose={tools.closeSearch} />}
 
       <DismissKeyboard>
         <FlatList
           inverted
-          data={rows}
-          extraData={messages.data}
+          ref={listRef}
+          data={tools.rows}
+          extraData={listState}
+          onScrollToIndexFailed={tools.onScrollToIndexFailed}
           keyExtractor={(row) => (row.kind === 'message' ? `m${row.message.dto.id}` : row.kind === 'pending' ? `p${row.pending.key}` : row.key)}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
@@ -203,8 +220,13 @@ export default function GroupChatScreen() {
                 me={me}
                 onPress={() => {
                   Keyboard.dismiss();
-                  setSelected(item.message);
+                  // While searching, a tap shows the message in its place in the conversation.
+                  if (tools.filtering) tools.jumpTo(item.message.dto.id);
+                  else setSelected(item.message);
                 }}
+                quote={tools.quoteOf(item.message)}
+                onPressQuote={tools.jumpTo}
+                highlighted={tools.highlightedId === item.message.dto.id}
                 onLongPress={() => {
                   Keyboard.dismiss();
                   setReactingTo(item.message);
@@ -216,7 +238,7 @@ export default function GroupChatScreen() {
             )
           }
           ListFooterComponent={
-            beforeJoining > 0 ? (
+            beforeJoining > 0 && !tools.filtering ? (
               <View style={[styles.joinNotice, { backgroundColor: theme.colors.surfaceVariant }]}>
                 <Icon source="lock-clock" size={16} color={theme.colors.onSurfaceVariant} />
                 <Text variant="labelMedium" style={[styles.joinNoticeText, { color: theme.colors.onSurfaceVariant }]}>
@@ -227,7 +249,7 @@ export default function GroupChatScreen() {
             ) : null
           }
           ListEmptyComponent={
-            loadingHistory ? (
+            tools.filtering ? null : loadingHistory ? (
               <LoadingHistory />
             ) : (
               <EmptyConversation
@@ -236,7 +258,7 @@ export default function GroupChatScreen() {
                 points={[
                   { icon: 'lock-outline', text: 'Each message is encrypted once, and its key is wrapped for every member’s on-chain key.' },
                   { icon: 'link-variant', text: 'Tap the group name to share the invite link and see who is online.' },
-                  { icon: 'emoticon-happy-outline', text: 'Tap a message to verify it, long-press to react.' },
+                  { icon: 'emoticon-happy-outline', text: 'Tap a message to verify it, long-press to react, reply or delete.' },
                 ]}
               />
             )
@@ -252,8 +274,10 @@ export default function GroupChatScreen() {
           const text = draft.trim();
           if (!text) return;
           setDraft('');
-          send(text);
+          send(tools.outgoing(text));
         }}
+        replyingTo={tools.replyPreview}
+        onCancelReply={tools.cancelReply}
         onSendVoice={async (recording) => send(await prepareVoiceMessage(recording))}
         onSwap={system.data?.contracts.SwapDesk ? () => setSwapping(true) : undefined}
         onSendImage={async () => {
@@ -264,7 +288,13 @@ export default function GroupChatScreen() {
       />
 
       <VerifySheet message={selected} peerUsername={selected ? nameOf(selected.dto.sender).replace(/^@/, '') : ''} onDismiss={() => setSelected(null)} />
-      <ReactionPicker visible={!!reactingTo} onDismiss={() => setReactingTo(null)} onSelect={(emoji) => reactingTo && react(reactingTo, emoji)} />
+      <ReactionPicker
+        visible={!!reactingTo}
+        onDismiss={() => setReactingTo(null)}
+        onSelect={(emoji) => reactingTo && react(reactingTo, emoji)}
+        actions={reactingTo ? tools.actionsFor(reactingTo) : []}
+        canReact={!reactingTo?.deleted}
+      />
       <ReactionsSheet reactions={reactionsOf === null ? null : (liveReactions.get(reactionsOf) ?? [])} me={me} nameOf={nameOf} onDismiss={() => setReactionsOf(null)} />
       <SwapOfferSheet
         visible={swapping}

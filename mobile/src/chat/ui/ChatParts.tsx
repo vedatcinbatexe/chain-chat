@@ -4,7 +4,9 @@ import { formatUnits, type Address, type Hex } from 'viem';
 
 import type { ReactionSummary } from '@/api/conversations';
 import { parsePaymentPayload } from '../payment';
-import { describeMedia, parseImagePayload } from '../image';
+import { messageBody } from '../content';
+import { parseImagePayload } from '../image';
+import { parseReplyPayload } from '../reply';
 import { parseSwapPayload } from '../swap';
 import { parseVoicePayload } from '../voice';
 import { ImageContent } from './ImageContent';
@@ -101,11 +103,19 @@ interface BubbleProps {
   reactions?: ReactionSummary[];
   /** Display name for an address (swap offers name the maker and whoever accepted). */
   nameOf?: (address: string) => string;
+  /** For a reply: the message it answers, shown above the text. */
+  quote?: { name: string; body: string; messageId: number | null } | null;
+  /** Tapping the quote: show the original message. */
+  onPressQuote?: (messageId: number) => void;
+  /** Marks the message the user jumped to. */
+  highlighted?: boolean;
 }
 
-export function MessageBubble({ message, groupedWithNext, senderLabel, senderName, recipient, me, onPress, onLongPress, onToggleReaction, onShowReactions, reactions: liveReactions, nameOf }: BubbleProps) {
+export function MessageBubble({ message, groupedWithNext, senderLabel, senderName, recipient, me, onPress, onLongPress, onToggleReaction, onShowReactions, reactions: liveReactions, nameOf, quote, onPressQuote, highlighted }: BubbleProps) {
   const theme = useTheme();
-  const { mine, text, signatureValid, chainIntact, dto } = message;
+  const { mine, signatureValid, chainIntact, dto, deleted } = message;
+  // A reply shows its own text; the message it answers is drawn as a quote above it.
+  const text = parseReplyPayload(message.text)?.text ?? message.text;
   // A payment only counts if the signed, encrypted payload names the same transaction the server recorded.
   const parsed = parsePaymentPayload(text);
   const payment = parsed && recipient && (!dto.payment || dto.payment.txHash.toLowerCase() === parsed.txHash.toLowerCase()) ? parsed : null;
@@ -115,7 +125,9 @@ export function MessageBubble({ message, groupedWithNext, senderLabel, senderNam
 
   const background = !signatureValid
     ? theme.colors.errorContainer
-    : payment || swap
+    : deleted
+      ? theme.colors.surfaceVariant
+      : payment || swap
       ? mine
         ? theme.colors.primaryContainer
         : theme.colors.secondaryContainer
@@ -124,7 +136,9 @@ export function MessageBubble({ message, groupedWithNext, senderLabel, senderNam
         : theme.colors.surfaceVariant;
   const foreground = !signatureValid
     ? theme.colors.onErrorContainer
-    : payment || swap
+    : deleted
+      ? theme.colors.onSurfaceVariant
+      : payment || swap
       ? mine
         ? theme.colors.onPrimaryContainer
         : theme.colors.onSecondaryContainer
@@ -152,9 +166,26 @@ export function MessageBubble({ message, groupedWithNext, senderLabel, senderNam
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={300}
-        accessibilityHint="Tap to verify, long-press to react"
-        style={[styles.bubble, tail, payment && styles.paymentBubble, { backgroundColor: background }]}>
-        {payment && recipient ? (
+        accessibilityHint="Tap to verify, long-press for reactions and actions"
+        style={[styles.bubble, tail, payment && styles.paymentBubble, { backgroundColor: background }, highlighted && { borderWidth: 2, borderColor: theme.colors.tertiary }]}>
+        {quote && !deleted && (
+          <Pressable
+            onPress={quote.messageId === null ? undefined : () => onPressQuote?.(quote.messageId!)}
+            disabled={quote.messageId === null}
+            style={[styles.quote, { borderLeftColor: foreground, backgroundColor: mine ? 'rgba(255,255,255,0.16)' : 'rgba(127,127,127,0.14)' }]}>
+            <Text variant="labelMedium" style={[styles.quoteName, { color: foreground }]} numberOfLines={1}>
+              {quote.name}
+            </Text>
+            <Text variant="bodySmall" style={{ color: foreground, opacity: 0.85 }} numberOfLines={2}>
+              {quote.body}
+            </Text>
+          </Pressable>
+        )}
+        {deleted ? (
+          <Text variant="bodyMedium" style={{ color: foreground, fontStyle: 'italic' }}>
+            🚫 {mine ? 'You deleted this message' : 'This message was deleted'}
+          </Text>
+        ) : payment && recipient ? (
           <PaymentContent payload={payment} dto={dto} recipient={recipient} color={foreground} />
         ) : voice ? (
           <VoiceContent voice={voice} color={foreground} />
@@ -243,7 +274,7 @@ export function PendingBubble({ pending, onRetry }: { pending: PendingMessage; o
 function describePending(pending: PendingMessage): string {
   const payment = parsePaymentPayload(pending.text);
   if (payment) return `💸 Sending ${formatUnits(BigInt(payment.amount), 18)} ${payment.token}…`;
-  return describeMedia(pending.text) ?? pending.text;
+  return messageBody(pending.text) ?? pending.text;
 }
 
 /** Slim bar shown while the real-time connection is not up. */
@@ -313,6 +344,8 @@ const styles = StyleSheet.create({
   paymentBubble: { paddingVertical: 12, paddingHorizontal: 16 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
   metaText: { opacity: 0.75 },
+  quote: { borderLeftWidth: 3, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, marginBottom: 3, alignSelf: 'stretch' },
+  quoteName: { fontWeight: '700' },
   warning: { paddingHorizontal: 6, marginBottom: 2 },
   reactions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 },
   reactionChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 12, borderWidth: 1 },

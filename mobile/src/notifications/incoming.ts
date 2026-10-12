@@ -9,6 +9,7 @@ import { useSessionStore } from '@/auth/sessionStore';
 import { readRegistration } from '@/chain/registry';
 import { parsePaymentPayload } from '@/chat/payment';
 import { describeMedia } from '@/chat/image';
+import { parseReplyPayload } from '@/chat/reply';
 import { decrypt, decryptGroupMessage, directConversationId } from '@/crypto';
 import { getEncryptionKeyPair, useWalletStore } from '@/wallet/walletStore';
 import { notify, useNotificationStore, type NotificationKind } from './store';
@@ -34,6 +35,7 @@ export function previewOf(text: string | null): { body: string; payment: boolean
   }
   const media = describeMedia(text);
   if (media) return { body: media, payment: false };
+  text = parseReplyPayload(text)?.text ?? text;
   return { body: text.length > MAX_PREVIEW_LENGTH ? `${text.slice(0, MAX_PREVIEW_LENGTH)}…` : text, payment: false };
 }
 

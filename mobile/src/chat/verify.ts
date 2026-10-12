@@ -1,7 +1,7 @@
 import type { Address, Hex } from 'viem';
 
 import type { MessageDto } from '@/api/conversations';
-import { checkChainLink, decrypt, messageHash, verifyMessageSignature } from '@/crypto';
+import { checkChainLink, decrypt, messageHash, messageHashFromCiphertextHash, verifyMessageSignature } from '@/crypto';
 
 export interface VerifiedMessage {
   dto: MessageDto;
@@ -14,6 +14,8 @@ export interface VerifiedMessage {
   chainIntact: boolean;
   /** messageHash recomputed on this phone from the message's fields — what anchoring proofs are checked against. */
   recomputedHash: Hex | null;
+  /** The sender deleted it: there is no content, but the signature, chain link and anchoring are still checked. */
+  deleted: boolean;
 }
 
 /**
@@ -37,6 +39,7 @@ export async function verifyMessagesWith(
   return Promise.all(
     messages.map(async (dto) => {
       const sender = dto.sender.toLowerCase();
+      const deleted = !!dto.deletedAt;
       const header = {
         conversationId: dto.conversationId,
         sender: dto.sender,
@@ -48,7 +51,8 @@ export async function verifyMessagesWith(
 
       let recomputed: Hex | null = null;
       try {
-        recomputed = messageHash(header);
+        // A deleted message is hashed from the fingerprint of its erased content.
+        recomputed = deleted ? messageHashFromCiphertextHash({ ...header, ciphertextHash: dto.ciphertextHash! }) : messageHash(header);
       } catch {
         recomputed = null;
       }
@@ -66,10 +70,11 @@ export async function verifyMessagesWith(
       return {
         dto,
         mine: sender === me.toLowerCase(),
-        text: decryptMessage(dto),
+        text: deleted ? null : decryptMessage(dto),
         signatureValid: hashMatches && signature.valid,
         chainIntact,
         recomputedHash: recomputed,
+        deleted,
       };
     }),
   );
